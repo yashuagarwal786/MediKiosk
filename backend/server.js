@@ -38,10 +38,14 @@ app.use(async (req, res, next) => {
 
 app.use("/api", require("./routes/ai"));
 app.use("/api/cases", require("./routes/cases"));
+app.use("/api/reports", require("./routes/reports"));
+app.use("/api/reminders", require("./routes/reminders"));
 
 app.get("/", (req, res) => res.sendFile(path.join(frontendPath, "index.html")));
 app.get("/patient", (req, res) => res.sendFile(path.join(frontendPath, "patient.html")));
 app.get("/doctor", (req, res) => res.sendFile(path.join(frontendPath, "doctor.html")));
+app.get("/reports", (req, res) => res.sendFile(path.join(frontendPath, "reports.html")));
+app.get("/reminders", (req, res) => res.sendFile(path.join(frontendPath, "reminders.html")));
 app.get("/case/:id", (req, res) => res.sendFile(path.join(frontendPath, "case.html")));
 
 app.use((req, res) => {

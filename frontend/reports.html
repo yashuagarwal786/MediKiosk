@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medical Report Analyzer | MediKiosk</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/theme.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <div class="brand-icon">+</div>
+      <span>MediKiosk</span>
+    </a>
+    <div class="nav-wrapper">
+      <nav>
+        <a href="/patient">Voice Intake</a>
+        <a class="active" href="/reports">Report Analyzer</a>
+        <a href="/reminders">Reminders</a>
+        <a href="/doctor">Doctor Portal</a>
+      </nav>
+      <button class="theme-toggle" aria-label="Toggle theme" title="Toggle dark mode"></button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="page-heading">
+      <p class="eyebrow">AI Health Intelligence</p>
+      <h1>Medical Report Analyzer</h1>
+      <p>Upload lab results, prescriptions, or blood test reports to extract instant plain-language AI summaries.</p>
+    </section>
+
+    <section class="two-column">
+      <article class="panel">
+        <h2>Upload Medical Report</h2>
+        <form id="uploadForm" class="dropzone-box">
+          <div class="dropzone-icon">📄</div>
+          <h3>Drag & Drop Report or Click to Browse</h3>
+          <p>Supports PDF, PNG, JPG medical diagnostic files up to 10MB</p>
+          <input type="file" id="reportFile" accept=".pdf,.png,.jpg,.jpeg,.txt" required style="display: none;">
+          <button type="button" class="button secondary" id="browseBtn">Select File</button>
+          <div id="fileInfo" class="file-info" style="display: none; margin-top: 12px; font-weight: 600; color: var(--primary);"></div>
+          
+          <div style="margin-top: 16px; width: 100%;">
+            <label style="text-align: left;">Patient Name (Optional)
+              <input type="text" id="patientName" placeholder="e.g. Rahul Sharma">
+            </label>
+            <button type="submit" class="button primary" id="uploadSubmitBtn" style="margin-top: 12px; width: 100%;">Upload & Analyze Report</button>
+          </div>
+        </form>
+        <p id="uploadStatus" class="status-line"></p>
+      </article>
+
+      <article class="panel">
+        <h2>Recent AI Report Summaries</h2>
+        <div id="reportsList" class="card-stack">Loading reports...</div>
+      </article>
+    </section>
+  </main>
+
+  <script src="/js/reports.js"></script>
+</body>
+</html>

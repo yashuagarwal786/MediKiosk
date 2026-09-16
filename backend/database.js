@@ -81,6 +81,45 @@ async function seedDefaultCases() {
       ]
     );
   }
+
+  const reminderCount = await get("SELECT COUNT(*) AS count FROM reminders");
+  if (!reminderCount || reminderCount.count === 0) {
+    const nowIso = new Date().toISOString();
+    await run(
+      `INSERT INTO reminders (patient_name, medicine_name, dosage, time, frequency, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ["Rahul Sharma", "Paracetamol 650mg", "1 Tablet", "08:00 AM", "After Breakfast", "Active", nowIso]
+    );
+    await run(
+      `INSERT INTO reminders (patient_name, medicine_name, dosage, time, frequency, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ["Rahul Sharma", "Azithromycin 500mg", "1 Tablet", "02:00 PM", "Once Daily", "Active", nowIso]
+    );
+    await run(
+      `INSERT INTO reminders (patient_name, medicine_name, dosage, time, frequency, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ["Rahul Sharma", "Vitamin C & Zinc", "1 Chewable", "09:00 PM", "After Dinner", "Completed", nowIso]
+    );
+  }
+
+  const reportCount = await get("SELECT COUNT(*) AS count FROM reports");
+  if (!reportCount || reportCount.count === 0) {
+    const nowIso = new Date().toISOString();
+    await run(
+      `INSERT INTO reports (patient_name, filename, file_path, file_type, extracted_text, ai_summary, key_findings, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "Rahul Sharma",
+        "Complete_Blood_Count_Report.pdf",
+        "/data/uploads/sample_cbc.pdf",
+        "application/pdf",
+        "Hemoglobin: 13.5 g/dL. Total WBC Count: 11,200 /mcL (Elevated). Platelet Count: 240,000 /mcL.",
+        "Patient exhibits mild leukocytosis (elevated WBC count) consistent with a viral or bacterial immune response. Red blood cell count and platelets are within normal ranges.",
+        "• WBC Count: 11,200 /mcL (Mildly Elevated)\n• Hemoglobin: 13.5 g/dL (Normal)\n• Platelets: 240,000 /mcL (Normal)",
+        nowIso
+      ]
+    );
+  }
 }
 
 async function initDatabase() {
@@ -96,6 +135,33 @@ async function initDatabase() {
       ai_summary TEXT,
       embedding TEXT,
       status TEXT NOT NULL DEFAULT 'Pending',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_name TEXT DEFAULT 'Patient',
+      filename TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_type TEXT,
+      extracted_text TEXT,
+      ai_summary TEXT,
+      key_findings TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_name TEXT DEFAULT 'Patient',
+      medicine_name TEXT NOT NULL,
+      dosage TEXT NOT NULL,
+      time TEXT NOT NULL,
+      frequency TEXT DEFAULT 'Daily',
+      status TEXT DEFAULT 'Active',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);

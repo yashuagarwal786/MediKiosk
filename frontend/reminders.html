@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medicine Reminders | MediKiosk</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/theme.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <div class="brand-icon">+</div>
+      <span>MediKiosk</span>
+    </a>
+    <div class="nav-wrapper">
+      <nav>
+        <a href="/patient">Voice Intake</a>
+        <a href="/reports">Report Analyzer</a>
+        <a class="active" href="/reminders">Reminders</a>
+        <a href="/doctor">Doctor Portal</a>
+      </nav>
+      <button class="theme-toggle" aria-label="Toggle theme" title="Toggle dark mode"></button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="page-heading">
+      <p class="eyebrow">Patient Health Management</p>
+      <h1>Medicine Reminders & Schedule</h1>
+      <p>Set daily medicine dosages, track timing schedules, and mark prescribed doses as taken.</p>
+    </section>
+
+    <section class="two-column">
+      <article class="panel">
+        <h2>Add Medicine Reminder</h2>
+        <form id="reminderForm">
+          <label>Patient Name
+            <input type="text" id="patientName" placeholder="Rahul Sharma" value="Rahul Sharma" required>
+          </label>
+          <label>Medicine Name
+            <input type="text" id="medicineName" placeholder="e.g. Paracetamol 650mg" required>
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <label>Dosage
+              <input type="text" id="dosage" placeholder="e.g. 1 Tablet" required>
+            </label>
+            <label>Timing
+              <input type="text" id="time" placeholder="e.g. 08:00 AM" required>
+            </label>
+          </div>
+          <label>Frequency / Instructions
+            <select id="frequency">
+              <option>After Breakfast</option>
+              <option>Before Lunch</option>
+              <option>After Dinner</option>
+              <option>Once Daily</option>
+              <option>Twice Daily</option>
+              <option>As Needed</option>
+            </select>
+          </label>
+          <button type="submit" class="button primary" style="margin-top: 12px; width: 100%;">+ Add Medicine Reminder</button>
+        </form>
+        <p id="reminderStatus" class="status-line"></p>
+      </article>
+
+      <article class="panel">
+        <div class="section-bar">
+          <h2>Daily Medicine Schedule</h2>
+          <span id="reminderCount" class="badge">0 Active</span>
+        </div>
+        <div id="remindersList" class="card-stack">Loading medicine schedule...</div>
+      </article>
+    </section>
+  </main>
+
+  <script src="/js/reminders.js"></script>
+</body>
+</html>

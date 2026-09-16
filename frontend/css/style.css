@@ -852,3 +852,33 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+/* Dropzone & Report Styles */
+.dropzone-box {
+  border: 2px dashed var(--border-strong);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-lg);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dropzone-box:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.dropzone-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.completed-card {
+  opacity: 0.75;
+  background: var(--bg-subtle);
+}
+
