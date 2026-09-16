@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor Dashboard | MediKiosk</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">MediKiosk</a>
+    <nav>
+      <a href="/patient">Patient</a>
+      <a class="active" href="/doctor">Doctor</a>
+    </nav>
+  </header>
+
+  <main class="app-shell">
+    <section class="page-heading">
+      <p class="eyebrow">Doctor Dashboard</p>
+      <h1>Review patient histories</h1>
+      <p>View structured case summaries, search recent cases, and open details for reference tools.</p>
+    </section>
+
+    <section class="stats-grid">
+      <article><span id="totalCases">0</span><p>Total Cases</p></article>
+      <article><span id="todayCases">0</span><p>Today's Cases</p></article>
+      <article><span id="pendingCases">0</span><p>Pending Cases</p></article>
+      <article><span id="completedCases">0</span><p>Completed Cases</p></article>
+    </section>
+
+    <section class="panel">
+      <div class="section-bar">
+        <h2>Recent Cases</h2>
+        <input id="searchCases" type="search" placeholder="Search cases">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Age</th>
+              <th>Complaint</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>View</th>
+            </tr>
+          </thead>
+          <tbody id="casesTable"></tbody>
+        </table>
+      </div>
+      <p id="doctorStatus" class="status-line"></p>
+    </section>
+  </main>
+
+  <script src="/js/doctor.js"></script>
+</body>
+</html>
