@@ -115,7 +115,7 @@ async function toggleRecording(target, button) {
     };
 
     state.recorder.start(200);
-    button.textContent = "?? Stop Recording";
+    button.textContent = "Stop Recording";
     setStatus(statusEl, "Recording audio... Speak your symptoms clearly and click 'Stop'.", "loading");
   } catch (err) {
     button.textContent = originalText;

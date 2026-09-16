@@ -1,4 +1,8 @@
-const id = window.location.pathname.split("/").filter(Boolean).pop();
+const urlParams = new URLSearchParams(window.location.search);
+const pathSegment = window.location.pathname.split("/").filter(Boolean).pop();
+const rawId = urlParams.get("id") || (pathSegment && !isNaN(pathSegment) ? pathSegment : null);
+const id = rawId && !isNaN(rawId) ? Number(rawId) : null;
+
 const els = {
   title: document.getElementById("caseTitle"),
   details: document.getElementById("detailsList"),
@@ -11,7 +15,7 @@ const els = {
 let currentCase = null;
 
 function setStatus(message, type = "") {
-  els.status.textContent = message;
+  els.status.innerHTML = message;
   els.status.className = `status-line ${type}`.trim();
 }
 
@@ -37,6 +41,13 @@ function renderCase(item) {
 }
 
 async function loadCase() {
+  if (!id) {
+    els.title.textContent = "No Case Selected";
+    els.summary.textContent = "Select a patient case from the Doctor Dashboard to review details.";
+    setStatus("No case ID specified. <a href='/doctor' style='color: var(--primary); font-weight: 600;'>Return to Doctor Dashboard</a>", "error");
+    return;
+  }
+
   setStatus("Loading case...", "loading");
   try {
     const response = await fetch(`/api/cases/${id}`);
@@ -45,7 +56,8 @@ async function loadCase() {
     renderCase(data.case);
     setStatus("");
   } catch (error) {
-    setStatus(error.message, "error");
+    els.title.textContent = "Case Not Found";
+    setStatus(`${error.message} <a href='/doctor' style='color: var(--primary); font-weight: 600;'>Return to Doctor Dashboard</a>`, "error");
   }
 }
 
