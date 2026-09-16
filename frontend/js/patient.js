@@ -147,8 +147,15 @@ document.getElementById("askQuestion").addEventListener("click", async () => {
         answers: state.answers
       })
     });
-    state.currentQuestion = data.question;
-    els.questionText.textContent = data.question;
+    let q = (data.question || "").trim();
+    q = q.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+    if (q.includes("Thinking Process:") || /^(?:Thinking Process|Thought|Reasoning)/i.test(q)) {
+      const parts = q.split(/\r?\n/).map(l => l.trim()).filter(l => l.endsWith("?") && !l.includes("**"));
+      if (parts.length > 0) q = parts[parts.length - 1];
+      else q = "How many days have you been experiencing these symptoms?";
+    }
+    state.currentQuestion = q;
+    els.questionText.textContent = q;
     els.listenQuestion.disabled = false;
     setStatus(els.assistantStatus, "Question ready.", "success");
   } catch (error) {

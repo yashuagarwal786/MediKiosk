@@ -73,13 +73,65 @@ async function nabhJson(path, payload) {
   return parseJsonResponse(response);
 }
 
+function cleanLLMText(rawText) {
+  if (!rawText || typeof rawText !== "string") return "";
+
+  let text = rawText.trim();
+
+  // Strip <think>...</think> or unclosed <think>... tags
+  text = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+
+  // Strip "Thinking Process: ..." or "Thought: ..." or "Reasoning: ..."
+  if (/^(?:Thinking Process|Thought|Reasoning|Analysis|1\.\s*\*\*Analyze)/i.test(text) || text.includes("Thinking Process:")) {
+    // If there is an explicit question line or marker:
+    const questionMatch = text.match(/(?:Question|Follow-up|Next Question|Patient Question|Single next question):\s*([^\n\r]+)/i);
+    if (questionMatch && questionMatch[1]) {
+      text = questionMatch[1].trim();
+    } else {
+      // Find the last non-empty line that ends with a question mark and isn't reasoning
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const questionLines = lines.filter(l => 
+        l.endsWith("?") && 
+        !l.includes("**") && 
+        !/^(?:Role|Task|Goal|Constraints|Input|Current State|\d+\.)/i.test(l)
+      );
+      if (questionLines.length > 0) {
+        text = questionLines[questionLines.length - 1];
+      } else {
+        // Find any sentence ending in ?
+        const sentences = text.match(/[^.?!]+(?:\?)/g);
+        if (sentences && sentences.length > 0) {
+          const cleanSentences = sentences
+            .map(s => s.trim())
+            .filter(s => !/^(?:Role|Task|Goal|Constraints|Input|Current State|\d+\.)/i.test(s));
+          if (cleanSentences.length > 0) {
+            text = cleanSentences[cleanSentences.length - 1];
+          } else {
+            text = "";
+          }
+        } else {
+          text = "";
+        }
+      }
+    }
+  }
+
+  // Remove leading bullets, numbers, quotes, or labels
+  text = text.replace(/^(?:Question|Next Question|Follow-up Question|AI):\s*/i, "");
+  text = text.replace(/^["'“”‘’]|["'“”‘’]$/g, "").trim();
+
+  return text;
+}
+
 function safeJsonParse(text, fallback) {
+  if (!text) return fallback;
+  const cleaned = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
   try {
-    const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
-    const parsed = JSON.parse(cleaned);
+    const jsonStr = cleaned.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    const parsed = JSON.parse(jsonStr);
     return parsed.patientHistory || parsed;
   } catch {
-    const match = text.match(/\{[\s\S]*\}/);
+    const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
       try {
         const parsed = JSON.parse(match[0]);
@@ -98,27 +150,32 @@ async function askQuestion({ complaint, symptoms, answers = [] }) {
 
   const json = await nabhJson("/chat/completions", {
     model: llmModel,
-    temperature: 0.3,
-    max_tokens: 150,
+    temperature: 0.2,
+    max_tokens: 300,
     messages: [
       {
         role: "system",
         content:
-          "You are a patient history assistant. Ask ONE concise follow-up question at a time to clarify symptom duration, severity, or triggers. Do not diagnose, prescribe, or recommend treatment. If enough information is collected, return DONE."
+          "You are a medical intake assistant at a clinic kiosk. You MUST respond with ONLY the single follow-up question to ask the patient. Do NOT write 'Thinking Process', do NOT write any chain-of-thought, do NOT analyze, do NOT output explanations. Output ONLY the question string directly, or 'DONE' if enough history is collected."
       },
       {
         role: "user",
-        content: `Complaint: ${complaint}\nSymptoms: ${symptoms || "Not provided"}\nPrevious answers:\n${answerText || "None"}\nAsk the single next most useful history question.`
+        content: `Patient Chief Complaint: ${complaint}\nPatient Symptoms: ${symptoms || "None provided"}\nHistory gathered so far:\n${answerText || "None"}\n\nAsk the single next most relevant clinical history question (e.g. duration, severity, fever temperature, or triggers). Output only the question text directly:`
       }
     ]
   });
 
   const message = json.choices?.[0]?.message;
-  let question = (message?.content || message?.reasoning || "").trim();
-  question = question.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  let question = cleanLLMText(message?.content || message?.reasoning || "");
 
-  if (!question) {
-    question = "How many days have you had these symptoms, and have you taken any medications for them?";
+  if (!question || question.length < 5) {
+    if (!answers || answers.length === 0) {
+      question = "How many days have you been experiencing these symptoms, and how severe is the discomfort?";
+    } else if (answers.length === 1) {
+      question = "Have you taken any medications or treatments for this, and did they provide any relief?";
+    } else {
+      question = "Are you experiencing any other related symptoms such as nausea, dizziness, or shortness of breath?";
+    }
   }
   return { question };
 }
@@ -128,12 +185,12 @@ async function generateSummary({ complaint, symptoms, answers = [] }) {
   const json = await nabhJson("/chat/completions", {
     model: llmModel,
     temperature: 0.2,
-    max_tokens: 400,
+    max_tokens: 500,
     messages: [
       {
         role: "system",
         content:
-          "Create a structured patient history summary from provided facts only in valid JSON format with keys: chiefComplaint, duration, symptoms, additionalInformation, importantInformation. Do not diagnose, prescribe, triage, or recommend treatment."
+          "You are a clinical assistant. Output a structured patient history summary in valid JSON format only, with keys: chiefComplaint, duration, symptoms, additionalInformation, importantInformation. Do not output any markdown formatting, preamble, or thinking process."
       },
       {
         role: "user",
@@ -143,7 +200,7 @@ async function generateSummary({ complaint, symptoms, answers = [] }) {
   });
 
   const message = json.choices?.[0]?.message;
-  const text = (message?.content || message?.reasoning || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const text = message?.content || message?.reasoning || "";
 
   return safeJsonParse(text, {
     chiefComplaint: complaint,
