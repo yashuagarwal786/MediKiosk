@@ -76,10 +76,20 @@ function startWebSpeech(target, button) {
   if (!SpeechRecognition) return false;
 
   const statusEl = target === "symptoms" ? els.speechStatus : els.assistantStatus;
-  const recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
+  const targetEl = target === "symptoms" ? els.symptoms : els.answerText;
+
+  let recognition;
+  try {
+    recognition = new SpeechRecognition();
+  } catch (e) {
+    return false;
+  }
+
+  recognition.lang = navigator.language || "en-US";
   recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.interimResults = true;
+
+  const initialText = targetEl.value ? targetEl.value.trim() + " " : "";
 
   recognition.onstart = () => {
     state.recognition = recognition;
@@ -88,32 +98,40 @@ function startWebSpeech(target, button) {
   };
 
   recognition.onresult = (event) => {
-    const transcript = event.results[0]?.[0]?.transcript?.trim();
-    if (transcript) {
-      if (target === "symptoms") {
-        els.symptoms.value = [els.symptoms.value, transcript].filter(Boolean).join(" ").trim();
+    let interim = "";
+    let final = "";
+    for (let i = 0; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        final += event.results[i][0].transcript;
       } else {
-        els.answerText.value = [els.answerText.value, transcript].filter(Boolean).join(" ").trim();
+        interim += event.results[i][0].transcript;
       }
-      setStatus(statusEl, "Speech captured successfully.", "success");
+    }
+    const combined = (final || interim).trim();
+    if (combined) {
+      targetEl.value = (initialText + combined).trim();
     }
   };
 
   recognition.onerror = (event) => {
     console.warn("Web Speech API error:", event.error);
-    if (event.error === "not-allowed") {
-      setStatus(statusEl, "Microphone permission was denied. Please allow microphone access in browser settings.", "error");
+    button.textContent = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
+    state.recognition = null;
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      setStatus(statusEl, "Microphone permission is required. Please allow microphone access in your browser.", "error");
     } else if (event.error === "no-speech") {
       setStatus(statusEl, "No speech was heard. Please click to try again.", "error");
     } else {
-      // Fallback to media recorder upload if web speech network failed
-      startMediaRecorder(target, button);
+      setStatus(statusEl, `Speech note: ${event.error}. You can also type directly.`, "error");
     }
   };
 
   recognition.onend = () => {
     button.textContent = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
     state.recognition = null;
+    if (targetEl.value.trim()) {
+      setStatus(statusEl, "Speech converted successfully.", "success");
+    }
   };
 
   try {
@@ -206,9 +224,22 @@ document.getElementById("askQuestion").addEventListener("click", async () => {
 
 els.listenQuestion.addEventListener("click", async () => {
   if (!state.currentQuestion) return;
-  setStatus(els.assistantStatus, "Preparing audio...", "loading");
+  setStatus(els.assistantStatus, "Playing question audio...", "loading");
 
-  // Try backend TTS first
+  // Use browser SpeechSynthesis for instant reliable playback
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(state.currentQuestion);
+    utterance.lang = "en-US";
+    utterance.rate = 0.95;
+    utterance.onstart = () => setStatus(els.assistantStatus, "Playing question audio.", "success");
+    utterance.onend = () => setStatus(els.assistantStatus, "Question ready.", "success");
+    utterance.onerror = () => setStatus(els.assistantStatus, "Audio playback error.", "error");
+    window.speechSynthesis.speak(utterance);
+    return;
+  }
+
+  // Fallback to backend TTS
   try {
     const response = await fetch("/api/text-to-speech", {
       method: "POST",
@@ -223,20 +254,9 @@ els.listenQuestion.addEventListener("click", async () => {
       return;
     }
   } catch (err) {
-    console.warn("Backend TTS request error, using browser speech synthesis:", err);
+    console.warn("Backend TTS request error:", err);
   }
-
-  // Fallback to browser built-in SpeechSynthesis
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(state.currentQuestion);
-    utterance.lang = "en-US";
-    utterance.onstart = () => setStatus(els.assistantStatus, "Playing question audio.", "success");
-    utterance.onerror = () => setStatus(els.assistantStatus, "Unable to play audio.", "error");
-    window.speechSynthesis.speak(utterance);
-  } else {
-    setStatus(els.assistantStatus, "Text-to-speech is not supported on this browser.", "error");
-  }
+  setStatus(els.assistantStatus, "Audio playback is not supported on this browser.", "error");
 });
 
 document.getElementById("nextQuestion").addEventListener("click", async () => {
