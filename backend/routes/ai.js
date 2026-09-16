@@ -32,7 +32,11 @@ const upload = multer({
 });
 
 function sendAiError(res, error) {
-  const configuredMessage = error.code === "AI_NOT_CONFIGURED" ? CONFIG_ERROR : SERVICE_ERROR;
+  console.error("AI Route Error:", error);
+  const configuredMessage =
+    error.code === "AI_NOT_CONFIGURED"
+      ? CONFIG_ERROR
+      : error.message || SERVICE_ERROR;
   res.status(error.status || 503).json({
     error: configuredMessage,
     code: error.code || "AI_ERROR"

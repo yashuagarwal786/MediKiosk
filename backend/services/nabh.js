@@ -36,9 +36,15 @@ async function parseJsonResponse(response) {
   }
 
   if (!response.ok) {
-    const error = new Error(json?.error?.message || SERVICE_ERROR);
+    const errorMsg =
+      json?.error?.message ||
+      json?.message ||
+      (typeof json?.error === "string" ? json.error : null) ||
+      (body && body.length < 300 ? body : null) ||
+      SERVICE_ERROR;
+    const error = new Error(errorMsg);
     error.status = response.status;
-    error.code = json?.error?.code || "NABH_ERROR";
+    error.code = json?.error?.code || json?.code || "NABH_ERROR";
     throw error;
   }
 
@@ -59,6 +65,7 @@ async function nabhJson(path, payload) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
@@ -147,23 +154,35 @@ async function speechToText(file) {
   ensureConfigured();
   const { apiKey, baseUrl, sttModel } = getConfig();
   const form = new FormData();
-  const audio = new Blob([fs.readFileSync(file.path)], {
-    type: file.mimetype || "audio/webm"
-  });
+  const fileBuffer = fs.readFileSync(file.path);
+
+  let audioFile;
+  if (typeof File !== "undefined") {
+    audioFile = new File([fileBuffer], file.originalname || "recording.webm", {
+      type: file.mimetype || "audio/webm"
+    });
+  } else {
+    audioFile = new Blob([fileBuffer], {
+      type: file.mimetype || "audio/webm"
+    });
+  }
 
   form.append("model", sttModel);
-  form.append("file", audio, file.originalname || "recording.webm");
+  form.append("file", audioFile, file.originalname || "recording.webm");
 
   const response = await fetch(`${baseUrl}/audio/transcriptions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`
+      Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey
     },
     body: form
   });
   const json = await parseJsonResponse(response);
   const text = json.text || json.transcription || json.data?.text;
-  if (!text) throw new Error(SERVICE_ERROR);
+  if (!text) {
+    throw new Error(json.error?.message || json.message || "No speech could be recognized.");
+  }
   return { text };
 }
 
@@ -174,6 +193,7 @@ async function textToSpeech(text) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -191,9 +211,10 @@ async function textToSpeech(text) {
     } catch {
       errorBody = null;
     }
-    const error = new Error(errorBody?.error?.message || SERVICE_ERROR);
+    const errorMsg = errorBody?.error?.message || errorBody?.message || SERVICE_ERROR;
+    const error = new Error(errorMsg);
     error.status = response.status;
-    error.code = errorBody?.error?.code || "NABH_ERROR";
+    error.code = errorBody?.error?.code || errorBody?.code || "NABH_ERROR";
     throw error;
   }
 
