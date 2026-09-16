@@ -143,7 +143,14 @@ function safeJsonParse(text, fallback) {
 }
 
 async function askQuestion({ complaint, symptoms, answers = [] }) {
+  if (answers.length >= 5) {
+    return { question: "DONE", isDone: true };
+  }
+
   const { llmModel } = getConfig();
+  const mainComplaint = complaint?.trim() || symptoms?.trim() || "Unspecified symptom";
+  const detailSymptoms = symptoms?.trim() || complaint?.trim() || "Unspecified detail";
+
   const answerText = answers
     .map((item, index) => `Q${index + 1}: ${item.question}\nA${index + 1}: ${item.answer}`)
     .join("\n");
@@ -156,11 +163,11 @@ async function askQuestion({ complaint, symptoms, answers = [] }) {
       {
         role: "system",
         content:
-          "You are a medical intake assistant at a clinic kiosk. You MUST respond with ONLY the single follow-up question to ask the patient. Do NOT write 'Thinking Process', do NOT write any chain-of-thought, do NOT analyze, do NOT output explanations. Output ONLY the question string directly, or 'DONE' if enough history is collected."
+          "You are a clinical intake assistant at a medical kiosk. Ask ONE concise, specific follow-up question strictly based on the patient's reported symptoms and complaint. Focus ONLY on clinical details (such as symptom duration, severity, fever temperature, onset, or triggers). Do NOT ask generic questions, do NOT diagnose or prescribe. A maximum of 5 questions are allowed in total. If 5 questions have already been answered or if sufficient clinical context is collected, respond ONLY with 'DONE'. Output ONLY the single question string directly."
       },
       {
         role: "user",
-        content: `Patient Chief Complaint: ${complaint}\nPatient Symptoms: ${symptoms || "None provided"}\nHistory gathered so far:\n${answerText || "None"}\n\nAsk the single next most relevant clinical history question (e.g. duration, severity, fever temperature, or triggers). Output only the question text directly:`
+        content: `Patient Chief Complaint: ${mainComplaint}\nDetailed Symptoms: ${detailSymptoms}\nQuestions & Answers so far (${answers.length}/5):\n${answerText || "None"}\n\nFormulate the single next most relevant clinical question for this patient based on their symptoms above. Output only the question text directly:`
       }
     ]
   });
@@ -168,16 +175,23 @@ async function askQuestion({ complaint, symptoms, answers = [] }) {
   const message = json.choices?.[0]?.message;
   let question = cleanLLMText(message?.content || message?.reasoning || "");
 
-  if (!question || question.length < 5) {
-    if (!answers || answers.length === 0) {
-      question = "How many days have you been experiencing these symptoms, and how severe is the discomfort?";
-    } else if (answers.length === 1) {
-      question = "Have you taken any medications or treatments for this, and did they provide any relief?";
-    } else {
-      question = "Are you experiencing any other related symptoms such as nausea, dizziness, or shortness of breath?";
-    }
+  if (question.toUpperCase().includes("DONE") || question === "DONE") {
+    return { question: "DONE", isDone: true };
   }
-  return { question };
+
+  if (!question || question.length < 5) {
+    const fallbackQuestions = [
+      "How many days have you been experiencing these symptoms, and how severe is the discomfort on a scale of 1 to 10?",
+      "Have you taken any medications or remedies for this, and did they provide any relief?",
+      "Did these symptoms start suddenly or gradually, and are there any specific triggers that make them worse?",
+      "Are you experiencing any other accompanying symptoms such as fever, dizziness, or shortness of breath?",
+      "Do you have any pre-existing medical conditions or allergies related to these symptoms?"
+    ];
+    question = fallbackQuestions[answers.length] || "DONE";
+    if (question === "DONE") return { question: "DONE", isDone: true };
+  }
+
+  return { question, isDone: false };
 }
 
 async function generateSummary({ complaint, symptoms, answers = [] }) {

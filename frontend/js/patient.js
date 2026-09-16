@@ -7,6 +7,8 @@ const state = {
   summary: null
 };
 
+const MAX_QUESTIONS = 5;
+
 const els = {
   name: document.getElementById("name"),
   age: document.getElementById("age"),
@@ -15,6 +17,7 @@ const els = {
   symptoms: document.getElementById("symptoms"),
   answerText: document.getElementById("answerText"),
   questionText: document.getElementById("questionText"),
+  questionCounter: document.getElementById("questionCounter"),
   summaryBox: document.getElementById("summaryBox"),
   speechStatus: document.getElementById("speechStatus"),
   assistantStatus: document.getElementById("assistantStatus"),
@@ -23,6 +26,7 @@ const els = {
 };
 
 function setStatus(element, message, type = "") {
+  if (!element) return;
   element.textContent = message;
   element.className = `status-line ${type}`.trim();
 }
@@ -49,6 +53,27 @@ function renderSummary(summary) {
   `;
 }
 
+async function triggerAutoSummary() {
+  setStatus(els.assistantStatus, "Questions complete! Generating structured summary...", "loading");
+  try {
+    const compVal = els.complaint.value.trim() || els.symptoms.value.trim();
+    const symVal = els.symptoms.value.trim() || els.complaint.value.trim();
+    const data = await apiJson("/api/generate-summary", {
+      method: "POST",
+      body: JSON.stringify({
+        complaint: compVal,
+        symptoms: symVal,
+        answers: state.answers
+      })
+    });
+    state.summary = data.summary;
+    renderSummary(data.summary);
+    setStatus(els.assistantStatus, "Intake questioning complete! Structured summary generated below.", "success");
+  } catch (error) {
+    setStatus(els.assistantStatus, error.message, "error");
+  }
+}
+
 async function convertSpeech(blob, target) {
   const formData = new FormData();
   formData.append("audio", blob, "recording.webm");
@@ -65,6 +90,9 @@ async function convertSpeech(blob, target) {
 
   if (data.text) {
     targetEl.value = [targetEl.value, data.text].filter(Boolean).join(" ").trim();
+    if (target === "symptoms" && !els.complaint.value.trim()) {
+      els.complaint.value = data.text.split(".")[0].slice(0, 60);
+    }
     setStatus(statusEl, `Transcribed: "${data.text}"`, "success");
   } else {
     setStatus(statusEl, "No speech detected in recording. Please try speaking closer to the microphone.", "error");
@@ -137,16 +165,49 @@ document.getElementById("typeManually").addEventListener("click", () => {
 });
 
 document.getElementById("askQuestion").addEventListener("click", async () => {
-  setStatus(els.assistantStatus, "AI is thinking...", "loading");
+  if (state.answers.length >= MAX_QUESTIONS) {
+    els.questionText.textContent = "Intake questioning complete! Maximum limit of 5 questions reached.";
+    if (els.questionCounter) {
+      els.questionCounter.style.display = "inline-block";
+      els.questionCounter.textContent = "Completed (5/5)";
+    }
+    await triggerAutoSummary();
+    return;
+  }
+
+  const compVal = els.complaint.value.trim() || els.symptoms.value.trim();
+  const symVal = els.symptoms.value.trim() || els.complaint.value.trim();
+
+  if (!compVal && !symVal) {
+    setStatus(els.assistantStatus, "Please describe your symptoms first.", "error");
+    return;
+  }
+
+  if (!els.complaint.value.trim() && compVal) {
+    els.complaint.value = compVal.slice(0, 60);
+  }
+
+  setStatus(els.assistantStatus, "AI is formulating next question...", "loading");
   try {
     const data = await apiJson("/api/ask-question", {
       method: "POST",
       body: JSON.stringify({
-        complaint: els.complaint.value,
-        symptoms: els.symptoms.value,
+        complaint: compVal,
+        symptoms: symVal,
         answers: state.answers
       })
     });
+
+    if (data.isDone || data.question === "DONE") {
+      els.questionText.textContent = "Intake questioning complete! Auto-generating summary below...";
+      if (els.questionCounter) {
+        els.questionCounter.style.display = "inline-block";
+        els.questionCounter.textContent = `Completed (${state.answers.length}/${MAX_QUESTIONS})`;
+      }
+      await triggerAutoSummary();
+      return;
+    }
+
     let q = (data.question || "").trim();
     q = q.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
     if (q.includes("Thinking Process:") || /^(?:Thinking Process|Thought|Reasoning)/i.test(q)) {
@@ -154,9 +215,16 @@ document.getElementById("askQuestion").addEventListener("click", async () => {
       if (parts.length > 0) q = parts[parts.length - 1];
       else q = "How many days have you been experiencing these symptoms?";
     }
+
     state.currentQuestion = q;
     els.questionText.textContent = q;
     els.listenQuestion.disabled = false;
+
+    if (els.questionCounter) {
+      els.questionCounter.style.display = "inline-block";
+      els.questionCounter.textContent = `Question ${state.answers.length + 1} of ${MAX_QUESTIONS}`;
+    }
+
     setStatus(els.assistantStatus, "Question ready.", "success");
   } catch (error) {
     setStatus(els.assistantStatus, error.message, "error");
@@ -209,17 +277,29 @@ document.getElementById("nextQuestion").addEventListener("click", async () => {
   }
   state.answers.push({ question: state.currentQuestion, answer: els.answerText.value.trim() });
   els.answerText.value = "";
-  document.getElementById("askQuestion").click();
+
+  if (state.answers.length >= MAX_QUESTIONS) {
+    els.questionText.textContent = "Intake questioning complete! Maximum limit of 5 questions reached.";
+    if (els.questionCounter) {
+      els.questionCounter.style.display = "inline-block";
+      els.questionCounter.textContent = "Completed (5/5)";
+    }
+    await triggerAutoSummary();
+  } else {
+    document.getElementById("askQuestion").click();
+  }
 });
 
 document.getElementById("generateSummary").addEventListener("click", async () => {
+  const compVal = els.complaint.value.trim() || els.symptoms.value.trim();
+  const symVal = els.symptoms.value.trim() || els.complaint.value.trim();
   setStatus(els.assistantStatus, "Generating summary...", "loading");
   try {
     const data = await apiJson("/api/generate-summary", {
       method: "POST",
       body: JSON.stringify({
-        complaint: els.complaint.value,
-        symptoms: els.symptoms.value,
+        complaint: compVal,
+        symptoms: symVal,
         answers: state.answers
       })
     });
