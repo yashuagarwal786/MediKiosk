@@ -1,6 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const {
   askQuestion,
@@ -15,8 +16,18 @@ const {
 const { all, get } = require("../database");
 
 const router = express.Router();
+const uploadDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), "medikiosk_uploads")
+  : path.join(__dirname, "..", "..", "data", "uploads");
+
+try {
+  fs.mkdirSync(uploadDir, { recursive: true });
+} catch (error) {
+  // directory might already exist or tmp is used
+}
+
 const upload = multer({
-  dest: path.join(__dirname, "..", "..", "data", "uploads"),
+  dest: uploadDir,
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 

@@ -1,7 +1,22 @@
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const sqlite3 = require("sqlite3").verbose();
 
-const dbPath = path.join(__dirname, "..", "data", "database.sqlite");
+function getDbPath() {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), "medikiosk_database.sqlite");
+  }
+  const defaultDir = path.join(__dirname, "..", "data");
+  try {
+    fs.mkdirSync(defaultDir, { recursive: true });
+    return path.join(defaultDir, "database.sqlite");
+  } catch {
+    return path.join(os.tmpdir(), "medikiosk_database.sqlite");
+  }
+}
+
+const dbPath = getDbPath();
 const db = new sqlite3.Database(dbPath);
 
 function run(sql, params = []) {

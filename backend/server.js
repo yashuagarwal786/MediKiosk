@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const express = require("express");
 const dotenv = require("dotenv");
 const { initDatabase } = require("./database");
@@ -10,9 +11,15 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 const frontendPath = path.join(__dirname, "..", "frontend");
-const uploadPath = path.join(__dirname, "..", "data", "uploads");
+const uploadPath = process.env.VERCEL
+  ? path.join(os.tmpdir(), "medikiosk_uploads")
+  : path.join(__dirname, "..", "data", "uploads");
 
-fs.mkdirSync(uploadPath, { recursive: true });
+try {
+  fs.mkdirSync(uploadPath, { recursive: true });
+} catch (error) {
+  console.warn("Could not create upload directory:", error.message);
+}
 
 const databaseReady = initDatabase();
 
