@@ -3,30 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Patient Dashboard | MediKiosk</title>
+  <title>Patient Intake | MediKiosk</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/theme.js"></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">MediKiosk</a>
-    <nav>
-      <a class="active" href="/patient">Patient</a>
-      <a href="/doctor">Doctor</a>
-    </nav>
+    <a class="brand" href="/">
+      <div class="brand-icon">+</div>
+      <span>MediKiosk</span>
+    </a>
+    <div class="nav-wrapper">
+      <nav>
+        <a class="active" href="/patient">Patient</a>
+        <a href="/doctor">Doctor</a>
+      </nav>
+      <button class="theme-toggle" aria-label="Toggle theme" title="Toggle dark mode"></button>
+    </div>
   </header>
 
   <main class="app-shell">
     <section class="page-heading">
-      <p class="eyebrow">Patient Dashboard</p>
+      <p class="eyebrow">Patient Intake</p>
       <h1>Tell us what brings you in today</h1>
-      <p>This assistant helps organize your history for the doctor. It does not provide diagnosis or treatment.</p>
+      <p>This assistant helps organize your history for the doctor. It does not provide medical diagnosis or treatment.</p>
     </section>
 
     <section class="two-column">
       <form id="patientForm" class="panel">
         <h2>Patient Information</h2>
         <div class="form-grid">
-          <label>Name<input id="name" type="text" required placeholder="Patient name"></label>
+          <label>Name<input id="name" type="text" required placeholder="Full Name"></label>
           <label>Age<input id="age" type="number" min="1" max="120" required placeholder="Age"></label>
           <label>Gender
             <select id="gender" required>
@@ -40,8 +47,8 @@
         </div>
 
         <h2>Current Complaint</h2>
-        <label>Chief complaint<input id="complaint" type="text" required placeholder="Example: fever and sore throat"></label>
-        <label>Describe your symptoms<textarea id="symptoms" rows="7" placeholder="Describe your symptoms..."></textarea></label>
+        <label>Chief complaint<input id="complaint" type="text" required placeholder="e.g. fever, headache, back pain"></label>
+        <label>Describe your symptoms<textarea id="symptoms" rows="6" placeholder="Describe your symptoms in detail or click Speak Symptoms below..."></textarea></label>
         <div class="button-row">
           <button class="button secondary" type="button" id="recordSymptoms">Speak Symptoms</button>
           <button class="button ghost" type="button" id="typeManually">Type Manually</button>
@@ -52,24 +59,24 @@
       <section class="panel">
         <h2>AI History Assistant</h2>
         <div class="assistant-box">
-          <p id="questionText" class="question">Click ‚ÄúAsk AI Question‚Äù after adding your complaint.</p>
+          <p id="questionText" class="question">Click ìAsk AI Questionî after adding your complaint.</p>
           <div class="button-row">
             <button class="button secondary" id="askQuestion" type="button">Ask AI Question</button>
             <button class="button ghost" id="listenQuestion" type="button" disabled>Listen</button>
           </div>
-          <label>Text Answer<textarea id="answerText" rows="4" placeholder="Type your answer here"></textarea></label>
+          <label style="margin-top: 16px;">Your Answer<textarea id="answerText" rows="3" placeholder="Type or speak your answer here..."></textarea></label>
           <div class="button-row">
             <button class="button secondary" id="recordAnswer" type="button">Speak Answer</button>
-            <button class="button primary" id="nextQuestion" type="button">Next</button>
+            <button class="button primary" id="nextQuestion" type="button">Next Question</button>
           </div>
           <p id="assistantStatus" class="status-line"></p>
         </div>
 
         <h2>Case Summary</h2>
-        <div id="summaryBox" class="summary-box empty">Generate a summary after answering the AI questions.</div>
+        <div id="summaryBox" class="summary-box empty">Generate a structured summary after answering AI follow-up questions.</div>
         <div class="button-row">
           <button class="button secondary" id="generateSummary" type="button">Generate Summary</button>
-          <button class="button primary" id="submitCase" type="button">Submit Case</button>
+          <button class="button primary" id="submitCase" type="button">Submit to Doctor</button>
         </div>
         <p id="submitStatus" class="status-line"></p>
       </section>

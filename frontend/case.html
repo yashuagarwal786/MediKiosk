@@ -5,37 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Case Details | MediKiosk</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/theme.js"></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">MediKiosk</a>
-    <nav>
-      <a href="/patient">Patient</a>
-      <a href="/doctor">Doctor</a>
-    </nav>
+    <a class="brand" href="/">
+      <div class="brand-icon">+</div>
+      <span>MediKiosk</span>
+    </a>
+    <div class="nav-wrapper">
+      <nav>
+        <a href="/patient">Patient</a>
+        <a class="active" href="/doctor">Doctor</a>
+      </nav>
+      <button class="theme-toggle" aria-label="Toggle theme" title="Toggle dark mode"></button>
+    </div>
   </header>
 
   <main class="app-shell">
     <section class="page-heading">
-      <p class="eyebrow">Case Details</p>
+      <p class="eyebrow"><a href="/doctor" style="color: var(--primary);">? Doctor Dashboard</a> / Case Details</p>
       <h1 id="caseTitle">Loading case...</h1>
-      <p>History support only. Similar cases and generated images are for reference and education, not medical advice.</p>
+      <p>Clinical history support only. Similar cases and generated illustrations are for reference and educational context.</p>
     </section>
 
     <section class="two-column">
       <article class="panel">
         <div class="section-bar">
           <h2>Patient Details</h2>
-          <select id="statusSelect">
-            <option>Pending</option>
-            <option>Completed</option>
-          </select>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="statusSelect" style="margin: 0; font-size: 0.85rem; color: var(--ink-muted);">Status:</label>
+            <select id="statusSelect" style="width: auto; padding: 6px 12px;">
+              <option>Pending</option>
+              <option>Completed</option>
+            </select>
+          </div>
         </div>
         <dl class="details-list" id="detailsList"></dl>
       </article>
 
       <article class="panel">
-        <h2>AI Generated Summary</h2>
+        <h2>AI Structured Summary</h2>
         <pre id="summaryText" class="summary-pre">Loading...</pre>
         <div class="button-row">
           <button class="button secondary" id="findSimilar">Find Similar Cases</button>
@@ -47,12 +57,12 @@
 
     <section class="two-column">
       <article class="panel">
-        <h2>Similar Cases</h2>
-        <div id="similarCases" class="card-stack empty">No similar cases loaded.</div>
+        <h2>Similar Previous Cases</h2>
+        <div id="similarCases" class="card-stack empty">Click "Find Similar Cases" above to search semantic case history.</div>
       </article>
       <article class="panel">
-        <h2>Generated Illustration</h2>
-        <div id="illustrationBox" class="illustration empty">No illustration generated.</div>
+        <h2>Educational Medical Illustration</h2>
+        <div id="illustrationBox" class="illustration empty">Click "Generate Illustration" to create a patient education diagram.</div>
       </article>
     </section>
   </main>

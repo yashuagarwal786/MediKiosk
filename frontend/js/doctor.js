@@ -30,12 +30,12 @@ function renderCases(cases) {
     .map(
       (item) => `
         <tr>
-          <td>${item.name}</td>
-          <td>${item.age}</td>
+          <td><strong>${item.name}</strong></td>
+          <td>${item.age} yrs <span style="color: var(--ink-muted); font-size: 0.85em;">(${item.gender || "—"})</span></td>
           <td>${item.complaint}</td>
-          <td>${formatDate(item.created_at)}</td>
+          <td style="color: var(--ink-secondary); font-size: 0.88rem;">${formatDate(item.created_at)}</td>
           <td><span class="badge ${item.status === "Completed" ? "completed" : ""}">${item.status}</span></td>
-          <td><a class="button ghost" href="/case/${item.id}">View</a></td>
+          <td><a class="button ghost" style="min-height: 36px; padding: 6px 14px;" href="/case/${item.id}">View Case</a></td>
         </tr>
       `
     )
