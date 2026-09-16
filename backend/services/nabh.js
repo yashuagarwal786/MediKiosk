@@ -8,12 +8,12 @@ function getConfig() {
   return {
     apiKey: process.env.NABH_API_KEY,
     baseUrl: process.env.NABH_BASE_URL || "https://api.nabh.cloud/v1",
-    llmModel: process.env.NABH_LLM_MODEL || "qwen3-5-397b",
+    llmModel: process.env.NABH_LLM_MODEL || "mistral-small-24b",
     embeddingModel: process.env.NABH_EMBEDDING_MODEL || "nomic-embed-text",
     imageModel: process.env.NABH_IMAGE_MODEL || "stable-diffusion-xl",
     sttModel: process.env.NABH_STT_MODEL || "whisper-large-v3-turbo",
     ttsModel: process.env.NABH_TTS_MODEL || "kokoro-tts",
-    ttsVoice: process.env.NABH_TTS_VOICE || "af_sarah"
+    ttsVoice: process.env.NABH_TTS_VOICE || "af_bella"
   };
 }
 
@@ -76,8 +76,16 @@ async function nabhJson(path, payload) {
 function safeJsonParse(text, fallback) {
   try {
     const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    return parsed.patientHistory || parsed;
   } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        return parsed.patientHistory || parsed;
+      } catch {}
+    }
     return fallback;
   }
 }
@@ -91,21 +99,27 @@ async function askQuestion({ complaint, symptoms, answers = [] }) {
   const json = await nabhJson("/chat/completions", {
     model: llmModel,
     temperature: 0.3,
+    max_tokens: 150,
     messages: [
       {
         role: "system",
         content:
-          "You are a patient history assistant. Ask one concise follow-up question at a time. Do not diagnose, prescribe, or recommend treatment. If enough information is collected, return DONE."
+          "You are a patient history assistant. Ask ONE concise follow-up question at a time to clarify symptom duration, severity, or triggers. Do not diagnose, prescribe, or recommend treatment. If enough information is collected, return DONE."
       },
       {
         role: "user",
-        content: `Complaint: ${complaint}\nSymptoms: ${symptoms || "Not provided"}\nPrevious answers:\n${answerText || "None"}\nAsk the next most useful history question.`
+        content: `Complaint: ${complaint}\nSymptoms: ${symptoms || "Not provided"}\nPrevious answers:\n${answerText || "None"}\nAsk the single next most useful history question.`
       }
     ]
   });
 
-  const question = json.choices?.[0]?.message?.content?.trim();
-  if (!question) throw new Error(SERVICE_ERROR);
+  const message = json.choices?.[0]?.message;
+  let question = (message?.content || message?.reasoning || "").trim();
+  question = question.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  if (!question) {
+    question = "How many days have you had these symptoms, and have you taken any medications for them?";
+  }
   return { question };
 }
 
@@ -114,12 +128,12 @@ async function generateSummary({ complaint, symptoms, answers = [] }) {
   const json = await nabhJson("/chat/completions", {
     model: llmModel,
     temperature: 0.2,
-    response_format: { type: "json_object" },
+    max_tokens: 400,
     messages: [
       {
         role: "system",
         content:
-          "Create a structured patient history summary from provided facts only. Do not diagnose, prescribe, triage, or recommend treatment. Return JSON with chiefComplaint, duration, symptoms, additionalInformation, importantInformation."
+          "Create a structured patient history summary from provided facts only in valid JSON format with keys: chiefComplaint, duration, symptoms, additionalInformation, importantInformation. Do not diagnose, prescribe, triage, or recommend treatment."
       },
       {
         role: "user",
@@ -128,7 +142,9 @@ async function generateSummary({ complaint, symptoms, answers = [] }) {
     ]
   });
 
-  const text = json.choices?.[0]?.message?.content || "";
+  const message = json.choices?.[0]?.message;
+  const text = (message?.content || message?.reasoning || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
   return safeJsonParse(text, {
     chiefComplaint: complaint,
     duration: "Not specified",
