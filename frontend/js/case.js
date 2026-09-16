@@ -19,8 +19,31 @@ function setStatus(message, type = "") {
   els.status.className = `status-line ${type}`.trim();
 }
 
+function parseUtcDate(value) {
+  if (!value) return new Date();
+  if (typeof value === "number") return new Date(value);
+  let str = String(value).trim();
+  if (!str.includes("Z") && !str.includes("+") && !str.includes("T")) {
+    str = str.replace(" ", "T") + "Z";
+  }
+  return new Date(str);
+}
+
 function formatDate(value) {
-  return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  try {
+    const d = parseUtcDate(value);
+    return d.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }) + " IST";
+  } catch {
+    return String(value);
+  }
 }
 
 function renderCase(item) {

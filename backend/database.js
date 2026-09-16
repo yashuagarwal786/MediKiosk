@@ -46,6 +46,43 @@ function all(sql, params = []) {
   });
 }
 
+async function seedDefaultCases() {
+  const countRow = await get("SELECT COUNT(*) AS count FROM cases");
+  if (!countRow || countRow.count === 0) {
+    const nowIso = new Date().toISOString();
+    await run(
+      `INSERT INTO cases (name, age, gender, complaint, symptoms, history, ai_summary, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "Rahul Sharma",
+        34,
+        "Male",
+        "High fever and dry cough",
+        "Cold, dry cough, body aches, mild headache",
+        "Q1: How long have you had fever?\nA1: 3 days\nQ2: Any difficulty breathing?\nA2: Mild shortness of breath when walking",
+        "Chief Complaint: High fever and dry cough\nDuration: 3 days\nSymptoms: Cold, dry cough, body aches, mild headache, mild shortness of breath\nAdditional Information: Symptoms started 3 days ago, worsening slightly.\nImportant Information: History support only. No diagnosis generated.",
+        "Pending",
+        nowIso
+      ]
+    );
+    await run(
+      `INSERT INTO cases (name, age, gender, complaint, symptoms, history, ai_summary, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "Priya Patel",
+        28,
+        "Female",
+        "Severe migraine and light sensitivity",
+        "Throbbing headache on left side, nausea, photophobia",
+        "Q1: When did the headache start?\nA1: Early this morning\nQ2: Have you taken any pain relief?\nA2: Paracetamol with no relief",
+        "Chief Complaint: Severe migraine and light sensitivity\nDuration: 12 hours\nSymptoms: Left-sided throbbing headache, nausea, sensitivity to bright light\nAdditional Information: Paracetamol taken without significant relief.\nImportant Information: History support only. No diagnosis generated.",
+        "Completed",
+        nowIso
+      ]
+    );
+  }
+}
+
 async function initDatabase() {
   await run(`
     CREATE TABLE IF NOT EXISTS cases (
@@ -63,37 +100,17 @@ async function initDatabase() {
     )
   `);
 
-  const countRow = await get("SELECT COUNT(*) AS count FROM cases");
-  if (countRow && countRow.count === 0) {
-    await run(
-      `INSERT INTO cases (name, age, gender, complaint, symptoms, history, ai_summary, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "Rahul Sharma",
-        34,
-        "Male",
-        "High fever and dry cough",
-        "Cold, dry cough, body aches, mild headache",
-        "Q1: How long have you had fever?\nA1: 3 days\nQ2: Any difficulty breathing?\nA2: Mild shortness of breath when walking",
-        "Chief Complaint: High fever and dry cough\nDuration: 3 days\nSymptoms: Cold, dry cough, body aches, mild headache, mild shortness of breath\nAdditional Information: Symptoms started 3 days ago, worsening slightly.\nImportant Information: History support only. No diagnosis generated.",
-        "Pending"
-      ]
-    );
-    await run(
-      `INSERT INTO cases (name, age, gender, complaint, symptoms, history, ai_summary, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "Priya Patel",
-        28,
-        "Female",
-        "Severe migraine and light sensitivity",
-        "Throbbing headache on left side, nausea, photophobia",
-        "Q1: When did the headache start?\nA1: Early this morning\nQ2: Have you taken any pain relief?\nA2: Paracetamol with no relief",
-        "Chief Complaint: Severe migraine and light sensitivity\nDuration: 12 hours\nSymptoms: Left-sided throbbing headache, nausea, sensitivity to bright light\nAdditional Information: Paracetamol taken without significant relief.\nImportant Information: History support only. No diagnosis generated.",
-        "Completed"
-      ]
-    );
+  await seedDefaultCases();
+}
+
+async function ensureDatabaseSeeded() {
+  await initDatabase();
+  let rows = await all("SELECT * FROM cases ORDER BY created_at DESC");
+  if (!rows || rows.length === 0) {
+    await seedDefaultCases();
+    rows = await all("SELECT * FROM cases ORDER BY created_at DESC");
   }
+  return rows;
 }
 
 module.exports = {
@@ -101,5 +118,6 @@ module.exports = {
   run,
   get,
   all,
-  initDatabase
+  initDatabase,
+  ensureDatabaseSeeded
 };

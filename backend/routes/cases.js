@@ -1,5 +1,5 @@
 const express = require("express");
-const { all, get, run } = require("../database");
+const { all, get, run, ensureDatabaseSeeded } = require("../database");
 const { generateEmbedding } = require("../services/nabh");
 
 const router = express.Router();
@@ -19,15 +19,18 @@ function compactSummary(summary) {
 router.get("/", async (req, res) => {
   const search = req.query.search?.trim();
   try {
-    const rows = search
-      ? await all(
-          `SELECT * FROM cases
-           WHERE name LIKE ? OR complaint LIKE ? OR ai_summary LIKE ?
-           ORDER BY created_at DESC`,
-          [`%${search}%`, `%${search}%`, `%${search}%`]
-        )
-      : await all("SELECT * FROM cases ORDER BY created_at DESC");
-    res.json({ cases: rows });
+    let rows;
+    if (search) {
+      rows = await all(
+        `SELECT * FROM cases
+         WHERE name LIKE ? OR complaint LIKE ? OR ai_summary LIKE ?
+         ORDER BY created_at DESC`,
+        [`%${search}%`, `%${search}%`, `%${search}%`]
+      );
+    } else {
+      rows = await ensureDatabaseSeeded();
+    }
+    res.json({ cases: rows || [] });
   } catch (error) {
     res.status(500).json({ error: "Unable to load cases." });
   }

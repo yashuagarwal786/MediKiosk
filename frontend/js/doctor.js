@@ -7,14 +7,44 @@ function setStatus(message, type = "") {
   statusEl.className = `status-line ${type}`.trim();
 }
 
+function parseUtcDate(value) {
+  if (!value) return new Date();
+  if (typeof value === "number") return new Date(value);
+  let str = String(value).trim();
+  if (!str.includes("Z") && !str.includes("+") && !str.includes("T")) {
+    str = str.replace(" ", "T") + "Z";
+  }
+  return new Date(str);
+}
+
 function formatDate(value) {
-  return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  try {
+    const d = parseUtcDate(value);
+    return d.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }) + " IST";
+  } catch {
+    return String(value);
+  }
 }
 
 function updateStats(cases) {
-  const today = new Date().toDateString();
+  const todayIst = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" });
   document.getElementById("totalCases").textContent = cases.length;
-  document.getElementById("todayCases").textContent = cases.filter((item) => new Date(item.created_at).toDateString() === today).length;
+  document.getElementById("todayCases").textContent = cases.filter((item) => {
+    try {
+      const itemIst = parseUtcDate(item.created_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" });
+      return itemIst === todayIst;
+    } catch {
+      return false;
+    }
+  }).length;
   document.getElementById("pendingCases").textContent = cases.filter((item) => item.status === "Pending").length;
   document.getElementById("completedCases").textContent = cases.filter((item) => item.status === "Completed").length;
 }
@@ -48,10 +78,29 @@ async function loadCases() {
     const response = await fetch("/api/cases");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Unable to load cases.");
-    allCases = data.cases;
+    allCases = data.cases || [];
+
+    if (allCases.length > 0) {
+      try { localStorage.setItem("medikiosk_cases", JSON.stringify(allCases)); } catch {}
+    } else {
+      const cached = localStorage.getItem("medikiosk_cases");
+      if (cached) {
+        try { allCases = JSON.parse(cached); } catch {}
+      }
+    }
+
     renderCases(allCases);
     setStatus(allCases.length ? "" : "No cases submitted yet.");
   } catch (error) {
+    const cached = localStorage.getItem("medikiosk_cases");
+    if (cached) {
+      try {
+        allCases = JSON.parse(cached);
+        renderCases(allCases);
+        setStatus("Loaded from offline cache.", "success");
+        return;
+      } catch {}
+    }
     setStatus(error.message, "error");
   }
 }
