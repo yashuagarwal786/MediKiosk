@@ -8,7 +8,7 @@ function getConfig() {
   return {
     apiKey: process.env.NABH_API_KEY,
     baseUrl: process.env.NABH_BASE_URL || "https://api.nabh.cloud/v1",
-    llmModel: process.env.NABH_LLM_MODEL || "mistral-7b-instruct",
+    llmModel: process.env.NABH_LLM_MODEL || "qwen3-5-397b",
     embeddingModel: process.env.NABH_EMBEDDING_MODEL || "nomic-embed-text",
     imageModel: process.env.NABH_IMAGE_MODEL || "stable-diffusion-xl",
     sttModel: process.env.NABH_STT_MODEL || "whisper-large-v3-turbo",

@@ -38,7 +38,7 @@ Official NABH.CLOUD documentation states that the API uses:
 
 Configured model IDs:
 
-- LLM: `mistral-7b-instruct`
+- LLM: `qwen3-5-397b`
 - Embeddings: `nomic-embed-text`
 - Image generation: `stable-diffusion-xl`
 - Speech-to-text: `whisper-large-v3-turbo`
@@ -204,7 +204,7 @@ Create `backend/.env` and add your NABH.CLOUD API key:
 ```env
 NABH_API_KEY=
 NABH_BASE_URL=https://api.nabh.cloud/v1
-NABH_LLM_MODEL=mistral-7b-instruct
+NABH_LLM_MODEL=qwen3-5-397b
 NABH_EMBEDDING_MODEL=nomic-embed-text
 NABH_IMAGE_MODEL=stable-diffusion-xl
 NABH_STT_MODEL=whisper-large-v3-turbo
