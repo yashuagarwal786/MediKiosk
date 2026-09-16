@@ -157,20 +157,22 @@ async function speechToText(file) {
   const fileBuffer = fs.readFileSync(file.path);
 
   let audioFile;
+  const filename = file.originalname && file.originalname.includes(".") ? file.originalname : "recording.webm";
+  const mimeType = file.mimetype || "audio/webm";
+
   if (typeof File !== "undefined") {
-    audioFile = new File([fileBuffer], file.originalname || "recording.webm", {
-      type: file.mimetype || "audio/webm"
-    });
+    audioFile = new File([fileBuffer], filename, { type: mimeType });
   } else {
-    audioFile = new Blob([fileBuffer], {
-      type: file.mimetype || "audio/webm"
-    });
+    audioFile = new Blob([fileBuffer], { type: mimeType });
   }
 
   form.append("model", sttModel);
-  form.append("file", audioFile, file.originalname || "recording.webm");
+  form.append("file", audioFile, filename);
 
-  const response = await fetch(`${baseUrl}/audio/transcriptions`, {
+  const modelUrl = `${baseUrl}/models/${sttModel}/audio/transcriptions`;
+  const fallbackUrl = `${baseUrl}/audio/transcriptions`;
+
+  let response = await fetch(modelUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -178,10 +180,22 @@ async function speechToText(file) {
     },
     body: form
   });
+
+  if (response.status === 404) {
+    response = await fetch(fallbackUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey
+      },
+      body: form
+    });
+  }
+
   const json = await parseJsonResponse(response);
   const text = json.text || json.transcription || json.data?.text;
   if (!text) {
-    throw new Error(json.error?.message || json.message || "No speech could be recognized.");
+    throw new Error(json.error?.message || json.message || "No speech could be recognized. Please speak closer to the mic.");
   }
   return { text };
 }
@@ -189,20 +203,37 @@ async function speechToText(file) {
 async function textToSpeech(text) {
   ensureConfigured();
   const { apiKey, baseUrl, ttsModel, ttsVoice } = getConfig();
-  const response = await fetch(`${baseUrl}/audio/speech`, {
+  const modelUrl = `${baseUrl}/models/${ttsModel}/audio/speech`;
+  const fallbackUrl = `${baseUrl}/audio/speech`;
+
+  const payload = {
+    model: ttsModel,
+    input: text,
+    voice: ttsVoice,
+    response_format: "mp3"
+  };
+
+  let response = await fetch(modelUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "x-api-key": apiKey,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: ttsModel,
-      input: text,
-      voice: ttsVoice,
-      response_format: "mp3"
-    })
+    body: JSON.stringify(payload)
   });
+
+  if (response.status === 404) {
+    response = await fetch(fallbackUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  }
 
   if (!response.ok) {
     let errorBody = null;

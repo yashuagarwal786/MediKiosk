@@ -1,6 +1,5 @@
 const state = {
   recorder: null,
-  recognition: null,
   chunks: [],
   recordingTarget: null,
   currentQuestion: "",
@@ -54,138 +53,73 @@ async function convertSpeech(blob, target) {
   const formData = new FormData();
   formData.append("audio", blob, "recording.webm");
   const statusEl = target === "symptoms" ? els.speechStatus : els.assistantStatus;
-  setStatus(statusEl, "Converting speech...", "loading");
+  const targetEl = target === "symptoms" ? els.symptoms : els.answerText;
+  setStatus(statusEl, "Transcribing speech with Whisper AI...", "loading");
 
   const response = await fetch("/api/speech-to-text", {
     method: "POST",
     body: formData
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "AI service is temporarily unavailable. Please try again.");
+  if (!response.ok) throw new Error(data.error || "Speech transcription failed.");
 
-  if (target === "symptoms") {
-    els.symptoms.value = [els.symptoms.value, data.text].filter(Boolean).join(" ").trim();
+  if (data.text) {
+    targetEl.value = [targetEl.value, data.text].filter(Boolean).join(" ").trim();
+    setStatus(statusEl, `Transcribed: "${data.text}"`, "success");
   } else {
-    els.answerText.value = [els.answerText.value, data.text].filter(Boolean).join(" ").trim();
-  }
-  setStatus(statusEl, "Speech converted successfully.", "success");
-}
-
-function startWebSpeech(target, button) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return false;
-
-  const statusEl = target === "symptoms" ? els.speechStatus : els.assistantStatus;
-  const targetEl = target === "symptoms" ? els.symptoms : els.answerText;
-
-  let recognition;
-  try {
-    recognition = new SpeechRecognition();
-  } catch (e) {
-    return false;
-  }
-
-  recognition.lang = navigator.language || "en-US";
-  recognition.continuous = false;
-  recognition.interimResults = true;
-
-  const initialText = targetEl.value ? targetEl.value.trim() + " " : "";
-
-  recognition.onstart = () => {
-    state.recognition = recognition;
-    button.textContent = "Stop Listening";
-    setStatus(statusEl, "Listening... Speak now.", "loading");
-  };
-
-  recognition.onresult = (event) => {
-    let interim = "";
-    let final = "";
-    for (let i = 0; i < event.results.length; ++i) {
-      if (event.results[i].isFinal) {
-        final += event.results[i][0].transcript;
-      } else {
-        interim += event.results[i][0].transcript;
-      }
-    }
-    const combined = (final || interim).trim();
-    if (combined) {
-      targetEl.value = (initialText + combined).trim();
-    }
-  };
-
-  recognition.onerror = (event) => {
-    console.warn("Web Speech API error:", event.error);
-    button.textContent = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
-    state.recognition = null;
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-      setStatus(statusEl, "Microphone permission is required. Please allow microphone access in your browser.", "error");
-    } else if (event.error === "no-speech") {
-      setStatus(statusEl, "No speech was heard. Please click to try again.", "error");
-    } else {
-      setStatus(statusEl, `Speech note: ${event.error}. You can also type directly.`, "error");
-    }
-  };
-
-  recognition.onend = () => {
-    button.textContent = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
-    state.recognition = null;
-    if (targetEl.value.trim()) {
-      setStatus(statusEl, "Speech converted successfully.", "success");
-    }
-  };
-
-  try {
-    recognition.start();
-    return true;
-  } catch (err) {
-    console.warn("Could not start Web Speech Recognition:", err);
-    return false;
-  }
-}
-
-async function startMediaRecorder(target, button) {
-  const statusEl = target === "symptoms" ? els.speechStatus : els.assistantStatus;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    state.chunks = [];
-    state.recordingTarget = target;
-    state.recorder = new MediaRecorder(stream);
-    state.recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) state.chunks.push(event.data);
-    };
-    state.recorder.onstop = async () => {
-      stream.getTracks().forEach((track) => track.stop());
-      try {
-        await convertSpeech(new Blob(state.chunks, { type: "audio/webm" }), state.recordingTarget);
-      } catch (error) {
-        setStatus(target === "symptoms" ? els.speechStatus : els.assistantStatus, `${error.message} Please retry.`, "error");
-      }
-    };
-    state.recorder.start();
-    button.textContent = "Stop Recording";
-    setStatus(statusEl, "Recording audio...", "loading");
-  } catch (err) {
-    setStatus(statusEl, "Microphone access is required to record audio. Please check browser permissions.", "error");
+    setStatus(statusEl, "No speech detected in recording. Please try speaking closer to the microphone.", "error");
   }
 }
 
 async function toggleRecording(target, button) {
-  if (state.recognition) {
-    state.recognition.stop();
-    state.recognition = null;
-    button.textContent = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
-    return;
-  }
+  const statusEl = target === "symptoms" ? els.speechStatus : els.assistantStatus;
+  const originalText = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
 
-  if (state.recorder?.state === "recording") {
+  if (state.recorder && state.recorder.state === "recording") {
     state.recorder.stop();
-    button.textContent = target === "symptoms" ? "Speak Symptoms" : "Speak Answer";
     return;
   }
 
-  const startedWebSpeech = startWebSpeech(target, button);
-  if (!startedWebSpeech) {
-    await startMediaRecorder(target, button);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.chunks = [];
+    state.recordingTarget = target;
+
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+      ? "audio/webm"
+      : "";
+
+    state.recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    state.recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) state.chunks.push(event.data);
+    };
+
+    state.recorder.onstop = async () => {
+      button.textContent = originalText;
+      stream.getTracks().forEach((track) => track.stop());
+      state.recorder = null;
+
+      if (!state.chunks.length) {
+        setStatus(statusEl, "No audio recorded. Please try again.", "error");
+        return;
+      }
+
+      try {
+        await convertSpeech(new Blob(state.chunks, { type: "audio/webm" }), state.recordingTarget);
+      } catch (error) {
+        setStatus(statusEl, `${error.message}`, "error");
+      }
+    };
+
+    state.recorder.start(200);
+    button.textContent = "?? Stop Recording";
+    setStatus(statusEl, "Recording audio... Speak your symptoms clearly and click 'Stop'.", "loading");
+  } catch (err) {
+    button.textContent = originalText;
+    setStatus(statusEl, "Microphone access denied. Please allow microphone permissions in your browser.", "error");
   }
 }
 
@@ -224,22 +158,8 @@ document.getElementById("askQuestion").addEventListener("click", async () => {
 
 els.listenQuestion.addEventListener("click", async () => {
   if (!state.currentQuestion) return;
-  setStatus(els.assistantStatus, "Playing question audio...", "loading");
+  setStatus(els.assistantStatus, "Generating speech with Kokoro TTS...", "loading");
 
-  // Use browser SpeechSynthesis for instant reliable playback
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(state.currentQuestion);
-    utterance.lang = "en-US";
-    utterance.rate = 0.95;
-    utterance.onstart = () => setStatus(els.assistantStatus, "Playing question audio.", "success");
-    utterance.onend = () => setStatus(els.assistantStatus, "Question ready.", "success");
-    utterance.onerror = () => setStatus(els.assistantStatus, "Audio playback error.", "error");
-    window.speechSynthesis.speak(utterance);
-    return;
-  }
-
-  // Fallback to backend TTS
   try {
     const response = await fetch("/api/text-to-speech", {
       method: "POST",
@@ -247,16 +167,28 @@ els.listenQuestion.addEventListener("click", async () => {
       body: JSON.stringify({ text: state.currentQuestion })
     });
     if (response.ok) {
-      const audioUrl = URL.createObjectURL(await response.blob());
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
+      audio.onended = () => setStatus(els.assistantStatus, "Question ready.", "success");
       audio.play();
-      setStatus(els.assistantStatus, "Playing question audio.", "success");
+      setStatus(els.assistantStatus, "Playing Kokoro audio...", "success");
       return;
     }
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || "Audio generation failed.");
   } catch (err) {
-    console.warn("Backend TTS request error:", err);
+    console.warn("Backend Kokoro TTS error:", err);
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(state.currentQuestion);
+      utterance.lang = "en-US";
+      window.speechSynthesis.speak(utterance);
+      setStatus(els.assistantStatus, "Playing question audio.", "success");
+    } else {
+      setStatus(els.assistantStatus, `${err.message}`, "error");
+    }
   }
-  setStatus(els.assistantStatus, "Audio playback is not supported on this browser.", "error");
 });
 
 document.getElementById("nextQuestion").addEventListener("click", async () => {
