@@ -1,5 +1,5 @@
 const express = require("express");
-const { all, get, run, ensureDatabaseSeeded } = require("../database");
+const { all, get, run, getAllCases } = require("../database");
 const { generateEmbedding } = require("../services/nabh");
 
 const router = express.Router();
@@ -28,7 +28,7 @@ router.get("/", async (req, res) => {
         [`%${search}%`, `%${search}%`, `%${search}%`]
       );
     } else {
-      rows = await ensureDatabaseSeeded();
+      rows = await getAllCases();
     }
     res.json({ cases: rows || [] });
   } catch (error) {

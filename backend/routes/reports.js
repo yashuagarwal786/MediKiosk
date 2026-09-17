@@ -61,32 +61,63 @@ router.post("/upload", upload.single("report"), async (req, res) => {
     extractedText += `\nExtracted content: Patient blood test & diagnostic panel results uploaded for review.`;
   }
 
-  let aiSummary = "Medical report uploaded successfully. Normal parameter values noted.";
-  let keyFindings = "• Report File: " + filename + "\n• Parameters analyzed: Blood panel / Diagnostic metrics\n• Status: Ready for doctor review";
+  let aiSummary = "Medical report uploaded successfully. Please consult your doctor for a detailed interpretation.";
+  let keyFindings = `• Report File: ${filename}\n• Status: Uploaded and ready for doctor review`;
 
   try {
     const { llmModel } = getConfig();
     const json = await nabhJson("/chat/completions", {
       model: llmModel,
       temperature: 0.2,
-      max_tokens: 400,
+      max_tokens: 800,
       messages: [
         {
           role: "system",
           content:
-            "You are a medical report analyzer assistant. Summarize uploaded medical reports in plain, easy-to-understand language for patients. Provide a 2-sentence summary and 3 bullet point key findings. Do NOT diagnose or prescribe."
+            `You are a medical report analysis assistant. Analyze the provided medical report details and produce a structured, detailed, patient-friendly summary. 
+Structure your response EXACTLY as follows (use these exact section headers):
+
+PATIENT: [Patient name if available, else "Not specified"]
+REPORT TYPE: [Type of report, e.g., Blood Test, CBC, X-Ray, Prescription]
+SUMMARY: [2-3 plain-language sentences explaining the overall findings in simple terms a patient can understand]
+KEY FINDINGS:
+• [Finding 1 with value and status: Normal / Mildly Elevated / Elevated / Low]
+• [Finding 2 with value and status]
+• [Finding 3 with value and status]
+• [Add more findings as present in the report]
+IMPORTANT NOTE: This is an AI-assisted summary for informational purposes only. Always consult your doctor for medical advice.
+
+Do NOT diagnose, prescribe, or recommend treatment. Do NOT include <think> tags or reasoning text.`
         },
         {
           role: "user",
-          content: `Medical Report Document Text:\n${extractedText}\n\nProvide patient summary and key findings:`
+          content: `Patient Name: ${patientName}\nReport Filename: ${filename}\nReport Contents:\n${extractedText}\n\nProvide a detailed, structured analysis following the format above:`
         }
       ]
     });
 
     const messageContent = json.choices?.[0]?.message?.content || "";
     if (messageContent) {
-      aiSummary = messageContent.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-      keyFindings = aiSummary;
+      const cleaned = messageContent
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/Thinking Process[\s\S]*?(?=PATIENT:|REPORT TYPE:|SUMMARY:)/i, "")
+        .trim();
+
+      // Split the structured response into ai_summary (summary section) and key_findings (findings section)
+      const summaryMatch = cleaned.match(/SUMMARY:\s*([\s\S]*?)(?=KEY FINDINGS:|IMPORTANT NOTE:|$)/i);
+      const findingsMatch = cleaned.match(/KEY FINDINGS:\s*([\s\S]*?)(?=IMPORTANT NOTE:|$)/i);
+
+      if (summaryMatch?.[1]?.trim()) {
+        aiSummary = cleaned; // Store the full structured response as the summary
+      } else {
+        aiSummary = cleaned;
+      }
+
+      if (findingsMatch?.[1]?.trim()) {
+        keyFindings = findingsMatch[1].trim();
+      } else {
+        keyFindings = cleaned;
+      }
     }
   } catch (err) {
     console.warn("NABH Report Summarization fallback:", err.message);

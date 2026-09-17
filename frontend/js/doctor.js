@@ -52,7 +52,7 @@ function updateStats(cases) {
 function renderCases(cases) {
   updateStats(allCases);
   if (!cases.length) {
-    table.innerHTML = `<tr><td colspan="6">No cases found.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--ink-secondary); padding: 32px;">No patient cases yet. Cases submitted through Patient Intake will appear here.</td></tr>`;
     return;
   }
 
@@ -73,34 +73,15 @@ function renderCases(cases) {
 }
 
 async function loadCases() {
-  setStatus("Loading cases...", "loading");
+  setStatus("Loading patient cases...", "loading");
   try {
     const response = await fetch("/api/cases");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Unable to load cases.");
     allCases = data.cases || [];
-
-    if (allCases.length > 0) {
-      try { localStorage.setItem("medikiosk_cases", JSON.stringify(allCases)); } catch {}
-    } else {
-      const cached = localStorage.getItem("medikiosk_cases");
-      if (cached) {
-        try { allCases = JSON.parse(cached); } catch {}
-      }
-    }
-
     renderCases(allCases);
-    setStatus(allCases.length ? "" : "No cases submitted yet.");
+    setStatus(allCases.length ? "" : "No patient cases submitted yet. Cases will appear here once patients complete intake.");
   } catch (error) {
-    const cached = localStorage.getItem("medikiosk_cases");
-    if (cached) {
-      try {
-        allCases = JSON.parse(cached);
-        renderCases(allCases);
-        setStatus("Loaded from offline cache.", "success");
-        return;
-      } catch {}
-    }
     setStatus(error.message, "error");
   }
 }

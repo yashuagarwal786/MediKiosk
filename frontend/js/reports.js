@@ -36,46 +36,41 @@ els.fileInput.addEventListener("change", () => {
   }
 });
 
-function renderReports(reports) {
-  if (!reports || !reports.length) {
+function renderSingleReport(item) {
+  if (!item) {
     els.reportsList.className = "card-stack empty";
-    els.reportsList.textContent = "No medical reports uploaded yet. Upload a report above to get AI summaries.";
+    els.reportsList.textContent = "Upload a report above to see your AI-generated summary here.";
     return;
   }
 
   els.reportsList.className = "card-stack";
-  els.reportsList.innerHTML = reports
-    .map(
-      (item) => `
-        <article class="case-card">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <h3>📄 ${item.filename}</h3>
-            <span class="badge completed">${item.patient_name || "Patient"}</span>
-          </div>
-          <p style="color: var(--ink-secondary); font-size: 0.85rem; margin-top: 4px;">Uploaded: ${formatDate(item.created_at)}</p>
-          <div style="margin-top: 10px; background: var(--surface-muted); padding: 12px; border-radius: 8px;">
-            <p><strong>AI Summary:</strong> ${item.ai_summary || "Report processed successfully."}</p>
-          </div>
-          ${
-            item.key_findings
-              ? `<div style="margin-top: 8px; font-size: 0.9rem;"><strong>Key Medical Metrics:</strong><pre style="white-space: pre-wrap; font-family: inherit; margin-top: 4px; color: var(--ink-secondary);">${item.key_findings}</pre></div>`
-              : ""
-          }
-        </article>
-      `
-    )
-    .join("");
+
+  // Format the full structured AI summary nicely
+  const summaryText = item.ai_summary || "Report processed successfully.";
+  const formattedSummary = summaryText
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/^(PATIENT:|REPORT TYPE:|SUMMARY:|KEY FINDINGS:|IMPORTANT NOTE:)/gm, '<br><strong style="color:var(--primary)">$1</strong>')
+    .replace(/^(• .*)/gm, '<span style="display:block; margin-left:12px; margin-top:4px;">$1</span>')
+    .replace(/\n/g, "<br>");
+
+  els.reportsList.innerHTML = `
+    <article class="case-card" style="border-left: 4px solid var(--primary);">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <h3 style="margin:0;">📄 ${item.filename}</h3>
+        <span class="badge completed">✓ Analyzed</span>
+      </div>
+      <p style="color: var(--ink-secondary); font-size: 0.85rem; margin-top: 4px;">
+        Patient: <strong>${item.patient_name || "Not specified"}</strong> &nbsp;|&nbsp; Uploaded: ${formatDate(item.created_at)}
+      </p>
+      <div style="margin-top: 14px; background: var(--surface-muted); padding: 16px; border-radius: 10px; font-size: 0.95rem; line-height: 1.7;">
+        ${formattedSummary}
+      </div>
+    </article>
+  `;
 }
 
-async function loadReports() {
-  try {
-    const response = await fetch("/api/reports");
-    const data = await response.json();
-    renderReports(data.reports || []);
-  } catch (error) {
-    els.reportsList.textContent = "Unable to load reports.";
-  }
-}
+// On page load: show empty state — no previous patient data
+renderSingleReport(null);
 
 els.form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -99,15 +94,13 @@ els.form.addEventListener("submit", async (event) => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Report upload failed.");
 
-    setStatus("Report uploaded & analyzed successfully!", "success");
+    setStatus("Report analyzed successfully! Your summary is ready below.", "success");
     els.fileInput.value = "";
     els.fileInfo.style.display = "none";
-    loadReports();
+    renderSingleReport(data.report); // Show only THIS patient's result
   } catch (error) {
     setStatus(error.message, "error");
   } finally {
     els.uploadSubmitBtn.disabled = false;
   }
 });
-
-loadReports();
