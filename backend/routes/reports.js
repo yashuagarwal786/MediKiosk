@@ -43,32 +43,67 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+function extractValidJson(rawText) {
+  if (!rawText) return null;
+
+  // 1. Strip <think>...</think> or unclosed <think>...
+  let text = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+
+  // 2. Look for ```json ... ``` code fence
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    try {
+      const p = JSON.parse(codeBlockMatch[1].trim());
+      if (p && typeof p === "object") return p;
+    } catch {}
+  }
+
+  // 3. Find JSON object starting with {"patientName" or {"reportType" or {"overallStatus"
+  const structuredMatch = text.match(/\{\s*"(?:patientName|reportType|overallStatus|summaryPoints|summary)"[\s\S]*\}/i);
+  if (structuredMatch) {
+    try {
+      const p = JSON.parse(structuredMatch[0]);
+      if (p && typeof p === "object") return p;
+    } catch {}
+  }
+
+  // 4. Try parsing from first { to last }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.substring(firstBrace, lastBrace + 1);
+    try {
+      const p = JSON.parse(candidate);
+      if (p && typeof p === "object") return p;
+    } catch {}
+  }
+
+  return null;
+}
+
 router.post("/upload", upload.single("report"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Please upload a medical report file (Image or PDF)." });
   }
 
-  const patientName = req.body.patient_name?.trim() || "Patient";
+  const patientNameInput = req.body.patient_name?.trim();
   const filename = req.file.originalname || "Medical_Report";
   const fileType = req.file.mimetype || "application/octet-stream";
 
-  let extractedText = `Medical Report: ${filename}\nDate: ${new Date().toLocaleDateString()}\nPatient: ${patientName}\n\n`;
+  let extractedText = `Medical Report: ${filename}\nDate: ${new Date().toLocaleDateString()}\n\n`;
 
   try {
     if (req.file.mimetype?.includes("pdf") || req.file.originalname?.toLowerCase().endsWith(".pdf")) {
-      // Parse PDF
       const dataBuffer = fs.readFileSync(req.file.path);
       const pdfData = await pdfParse(dataBuffer);
       extractedText += pdfData.text;
     } else if (req.file.mimetype?.includes("image") || /\.(png|jpg|jpeg)$/i.test(req.file.originalname)) {
-      // Perform OCR on Images using NABH PaddleOCR-VL model
       const text = await extractTextFromImage(req.file.path, req.file.mimetype);
       extractedText += text;
     } else if (req.file.mimetype?.includes("text") || req.file.originalname?.toLowerCase().endsWith(".txt")) {
-      // Read plain text
       extractedText += fs.readFileSync(req.file.path, "utf8");
     } else {
-      extractedText += "Unsupported file format for text extraction. Only PDF, Images, and TXT are supported.";
+      extractedText += "Unsupported file format for text extraction.";
     }
   } catch (error) {
     console.error("Text extraction failed:", error);
@@ -95,45 +130,52 @@ router.post("/upload", upload.single("report"), async (req, res) => {
       body: JSON.stringify({
         model: llmModel,
         temperature: 0.1,
-        max_tokens: 1500,
+        max_tokens: 1800,
         messages: [
           {
             role: "system",
-            content: `You are a clinical medical report analysis assistant. Analyze the provided medical report text and return a structured JSON object ONLY — no markdown, no explanation, no <think> tags.
+            content: `You are an expert clinical medical report analyzer. Extract and structure all medical report details into a clean JSON object. 
 
-Return this exact JSON structure:
+Output ONLY the raw JSON object — no reasoning, no thinking process, no markdown fences, no extra text.
+
+JSON Schema:
 {
   "patientName": "string or null",
-  "reportType": "string (e.g. CBC, Blood Test, LFT, Urine Analysis, X-Ray Report, etc.)",
-  "labName": "string or null",
-  "reportDate": "string or null",
-  "doctorName": "string or null",
+  "ageGender": "string or null (e.g. 28 Y / Male)",
+  "reportType": "string (e.g. Complete Blood Count (CBC), Liver Function Test, Urine Routine)",
+  "labName": "string or null (e.g. CityCare Diagnostics)",
+  "reportDate": "string or null (e.g. 16-May-2025)",
+  "doctorName": "string or null (e.g. Dr. Aniket Verma)",
   "overallStatus": "Normal | Borderline | Abnormal | Critical",
-  "summary": "2-3 plain English sentences explaining findings for a patient",
+  "summaryPoints": [
+    "Concise clinical observation point 1",
+    "Concise clinical observation point 2"
+  ],
   "parameters": [
     {
-      "name": "test/parameter name",
-      "value": "reported value with unit",
-      "referenceRange": "normal range if available",
-      "status": "Normal | Low | High | Critical | N/A",
-      "flag": true or false
+      "name": "Parameter Name (e.g. Hemoglobin (Hb))",
+      "value": "Value with unit (e.g. 15.2 g/dL)",
+      "referenceRange": "Ref Range (e.g. 13.5 - 17.5)",
+      "status": "Normal | Low | High | Critical",
+      "flag": false
     }
   ],
-  "criticalAlerts": ["list of critical or flagged findings that need urgent attention, or empty array"],
-  "recommendations": ["general lifestyle or follow-up suggestions — NO diagnosis or prescriptions"],
-  "disclaimer": "This AI-generated summary is for informational purposes only. Always consult your doctor for medical advice."
+  "criticalAlerts": [],
+  "recommendations": [
+    "General non-prescriptive advice (e.g. Maintain hydration, follow up with doctor if symptomatic)"
+  ],
+  "disclaimer": "This summary is AI-generated for informational purposes only. Always consult a medical professional."
 }
 
 Rules:
-- Extract every individual lab parameter with its value and reference range.
-- Set "flag": true for any value outside the reference range.
-- overallStatus: "Critical" if any critical alert exists, "Abnormal" if any parameter is flagged, "Borderline" if borderline, else "Normal".
-- Do NOT diagnose, prescribe medication, or make clinical decisions.
-- Output ONLY the raw JSON object. No markdown code blocks.`
+- Extract EVERY test parameter with its reported value, unit, and reference range.
+- Set "flag": true ONLY if the value is strictly outside the reference range.
+- Set overallStatus to "Abnormal" or "Critical" if any parameter is flagged. Otherwise set to "Normal".
+- Output ONLY the JSON object.`
           },
           {
             role: "user",
-            content: `Patient Name: ${patientName}\nReport Filename: ${filename}\n\nExtracted Report Text:\n${extractedText}\n\nAnalyze and return structured JSON:`
+            content: `Extracted Medical Report Text:\n${extractedText}\n\nReturn structured JSON:`
           }
         ]
       })
@@ -147,43 +189,25 @@ Rules:
     const json = await response.json();
     let raw = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning || "";
 
-    // Strip <think> blocks and markdown code fences
-    raw = raw
-      .replace(/<think>[\s\S]*?<\/think>/gi, "")
-      .replace(/```json\s*/i, "")
-      .replace(/```/g, "")
-      .trim();
+    const parsed = extractValidJson(raw);
 
-    // Try to parse JSON
-    let parsed = null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      // Try extracting JSON object from response
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (match) {
-        try { parsed = JSON.parse(match[0]); } catch {}
-      }
-    }
-
-    if (parsed && typeof parsed === "object") {
-      // Store structured JSON as aiSummary, and a text version as keyFindings
+    if (parsed) {
+      if (patientNameInput) parsed.patientName = patientNameInput;
       aiSummary = JSON.stringify(parsed);
       keyFindings = (parsed.parameters || [])
         .filter(p => p.flag)
         .map(p => `• ${p.name}: ${p.value} (${p.status}) — Ref: ${p.referenceRange || "N/A"}`)
         .join("\n") || "• All parameters within normal range";
     } else {
-      // Fallback JSON object if model returned plain text or empty
       const fallbackObj = {
         reportType: "Diagnostic Report",
-        patientName: patientName !== "Patient" ? patientName : null,
+        patientName: patientNameInput || null,
         overallStatus: "Normal",
-        summary: raw || extractedText?.slice(0, 300) || "Report uploaded and registered successfully.",
+        summaryPoints: ["Medical report uploaded and registered successfully."],
         parameters: [],
         criticalAlerts: [],
-        recommendations: ["Consult with a qualified healthcare professional to review these results."],
-        disclaimer: "This AI-assisted summary is for informational purposes only. Always consult your doctor for medical advice."
+        recommendations: ["Consult with your physician to review full findings."],
+        disclaimer: "This summary is AI-generated for informational purposes only."
       };
       aiSummary = JSON.stringify(fallbackObj);
       keyFindings = `• Report: ${filename}\n• Status: Processed`;
@@ -191,17 +215,17 @@ Rules:
   } catch (err) {
     console.warn("NABH Report Summarization fallback:", err.message);
     const errObj = {
-      reportType: "Unknown Report",
-      patientName: patientName !== "Patient" ? patientName : null,
+      reportType: "Medical Report",
+      patientName: patientNameInput || null,
       overallStatus: "N/A",
-      summary: `Report uploaded. AI Analysis Note: ${err.message}`,
+      summaryPoints: [`Report uploaded. Note: ${err.message}`],
       parameters: [],
       criticalAlerts: [],
-      recommendations: ["Please consult your doctor directly with the original file."],
+      recommendations: ["Please share the original report directly with your doctor."],
       disclaimer: "Always consult your doctor for medical advice."
     };
     aiSummary = JSON.stringify(errObj);
-    keyFindings = `• Report File: ${filename}\n• AI analysis status: ${err.message}`;
+    keyFindings = `• Report File: ${filename}\n• Status: ${err.message}`;
   }
 
   try {
