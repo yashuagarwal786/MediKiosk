@@ -141,21 +141,7 @@ router.post("/upload", upload.single("report"), async (req, res) => {
       userMessageContent = `Extracted Medical Report Text:\n${extractedText}\n\nReturn structured JSON:`;
     }
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "x-api-key": apiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: isImage ? ocrModel : llmModel,
-        temperature: 0.1,
-        max_tokens: 2000,
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert clinical medical report analyzer. Extract and structure all medical report details into a clean JSON object. 
+    const sysPrompt = `You are an expert clinical medical report analyzer. Extract and structure all medical report details into a clean JSON object. 
 
 Output ONLY the raw JSON object — no reasoning, no thinking process, no markdown fences, no extra text.
 
@@ -192,15 +178,51 @@ Rules:
 - Extract EVERY test parameter with its reported value, unit, and reference range.
 - Set "flag": true ONLY if the value is strictly outside the reference range.
 - Set overallStatus to "Abnormal" or "Critical" if any parameter is flagged. Otherwise set to "Normal".
-- Output ONLY the JSON object.`
-          },
-          {
-            role: "user",
-            content: userMessageContent
-          }
+- Output ONLY the JSON object.`;
+
+    const targetUrl = isImage 
+      ? `${baseUrl}/models/${ocrModel}/chat/completions` 
+      : `${baseUrl}/chat/completions`;
+
+    let response = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: isImage ? ocrModel : llmModel,
+        temperature: 0.1,
+        max_tokens: 2000,
+        messages: [
+          { role: "system", content: sysPrompt },
+          { role: "user", content: userMessageContent }
         ]
       })
     });
+
+    // Fallback: If model-scoped endpoint failed, retry with standard LLM completions endpoint
+    if (!response.ok && isImage) {
+      console.warn("Model-scoped path failed, retrying with standard completions endpoint...");
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: llmModel,
+          temperature: 0.1,
+          max_tokens: 2000,
+          messages: [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: `Medical Report Contents:\n${extractedText}\n\nAnalyze and return structured JSON:` }
+          ]
+        })
+      });
+    }
 
     if (!response.ok) {
       const errText = await response.text();
