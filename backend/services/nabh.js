@@ -129,17 +129,30 @@ function safeJsonParse(text, fallback) {
   try {
     const jsonStr = cleaned.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
     const parsed = JSON.parse(jsonStr);
-    return parsed.patientHistory || parsed;
+    return normalizeSummary(parsed);
   } catch {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
       try {
         const parsed = JSON.parse(match[0]);
-        return parsed;
+        return normalizeSummary(parsed);
       } catch {}
     }
     return fallback;
   }
+}
+
+function normalizeSummary(parsed) {
+  return {
+    ...parsed,
+    additionalInformation: typeof parsed.additionalInformation === "string"
+      ? parsed.additionalInformation
+      : Array.isArray(parsed.additionalInformation)
+        ? parsed.additionalInformation.map((item) => typeof item === "string" ? item : `${item.question || ""}: ${item.answer || ""}`).join("\n")
+        : parsed.additionalInformation && typeof parsed.additionalInformation === "object"
+          ? Object.entries(parsed.additionalInformation).map(([k, v]) => `${k}: ${v}`).join("\n")
+          : "Not specified",
+  };
 }
 
 async function askQuestion({ complaint, symptoms, answers = [] }) {

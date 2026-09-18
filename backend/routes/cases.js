@@ -11,7 +11,7 @@ function compactSummary(summary) {
     `Chief Complaint: ${summary.chiefComplaint || "Not specified"}`,
     `Duration: ${summary.duration || "Not specified"}`,
     `Symptoms: ${Array.isArray(summary.symptoms) ? summary.symptoms.join(", ") : summary.symptoms || "Not specified"}`,
-    `Additional Information: ${summary.additionalInformation || "Not specified"}`,
+    `Additional Information: ${typeof summary.additionalInformation === "string" ? summary.additionalInformation : Array.isArray(summary.additionalInformation) ? summary.additionalInformation.join(", ") : summary.additionalInformation ? JSON.stringify(summary.additionalInformation) : "Not specified"}`,
     `Important Information: ${summary.importantInformation || "History assistant only. No diagnosis generated."}`
   ].join("\n");
 }

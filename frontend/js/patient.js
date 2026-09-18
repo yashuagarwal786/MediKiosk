@@ -43,12 +43,19 @@ async function apiJson(url, options = {}) {
 
 function renderSummary(summary) {
   const symptoms = Array.isArray(summary.symptoms) ? summary.symptoms.join(", ") : summary.symptoms;
+  const additionalInfo = typeof summary.additionalInformation === "string"
+    ? summary.additionalInformation
+    : Array.isArray(summary.additionalInformation)
+      ? summary.additionalInformation.map((item) => typeof item === "string" ? item : `${item.question || ""}: ${item.answer || ""}`).join("\n")
+      : summary.additionalInformation && typeof summary.additionalInformation === "object"
+        ? Object.entries(summary.additionalInformation).map(([k, v]) => `${k}: ${v}`).join("\n")
+        : "Not specified";
   els.summaryBox.classList.remove("empty");
   els.summaryBox.innerHTML = `
     <p><strong>Chief Complaint:</strong> ${summary.chiefComplaint || "Not specified"}</p>
     <p><strong>Duration:</strong> ${summary.duration || "Not specified"}</p>
     <p><strong>Symptoms:</strong> ${symptoms || "Not specified"}</p>
-    <p><strong>Additional Information:</strong> ${summary.additionalInformation || "Not specified"}</p>
+    <p><strong>Additional Information:</strong> ${additionalInfo}</p>
     <p><strong>Important Information:</strong> ${summary.importantInformation || "History support only. No diagnosis generated."}</p>
   `;
 }
