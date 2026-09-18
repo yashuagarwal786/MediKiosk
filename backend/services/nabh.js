@@ -377,24 +377,20 @@ async function generateImage(prompt) {
 
 async function extractTextFromImage(filePath, mimeType) {
   ensureConfigured();
-  const { apiKey, baseUrl, ocrModel } = getConfig();
+  const { apiKey, baseUrl, ocrModel, llmModel } = getConfig();
   const fileBuffer = fs.readFileSync(filePath);
   const base64Image = fileBuffer.toString("base64");
   const dataUrl = `data:${mimeType || "image/jpeg"};base64,${base64Image}`;
 
-  // Use model-scoped path as shown in NABH documentation
-  const modelUrl = `${baseUrl}/models/${ocrModel}/chat/completions`;
+  const promptText = "You are a medical document OCR engine. Extract ALL text from this medical report image completely and accurately. Preserve the exact layout including: patient details, test names, values, reference ranges, units, dates, doctor name, lab name, and any remarks. Output only the raw extracted text with no commentary.";
 
-  const payload = {
+  const payloadVision = {
     model: ocrModel,
     messages: [
       {
         role: "user",
         content: [
-          {
-            type: "text",
-            text: "You are a medical document OCR engine. Extract ALL text from this medical report image completely and accurately. Preserve the exact layout including: patient details, test names, values, reference ranges, units, dates, doctor name, lab name, and any remarks. Output only the raw extracted text with no commentary."
-          },
+          { type: "text", text: promptText },
           { type: "image_url", image_url: { url: dataUrl } }
         ]
       }
@@ -402,39 +398,62 @@ async function extractTextFromImage(filePath, mimeType) {
     max_tokens: 2000
   };
 
-  let response = await fetch(modelUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "x-api-key": apiKey,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
+  const modelUrl = `${baseUrl}/models/${ocrModel}/chat/completions`;
 
-  // Fallback to generic completions if model-scoped path fails
-  if (!response.ok && response.status === 404) {
-    response = await fetch(`${baseUrl}/chat/completions`, {
+  let response;
+  try {
+    // 1. Try model-scoped path with Vision payload
+    response = await fetch(modelUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "x-api-key": apiKey,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payloadVision)
     });
-  }
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`OCR failed (${response.status}): ${err}`);
-  }
+    // 2. Fallback to generic path if model-scoped returns 404
+    if (!response.ok && (response.status === 404 || response.status === 400)) {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payloadVision)
+      });
+    }
 
-  const json = await response.json();
-  const message = json.choices?.[0]?.message;
-  const text = message?.content || message?.reasoning || "";
-  // Strip any residual <think> blocks
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    // 3. Fallback to main LLM model if OCR model fails
+    if (!response.ok && llmModel && llmModel !== ocrModel) {
+      const fallbackPayload = { ...payloadVision, model: llmModel };
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(fallbackPayload)
+      });
+    }
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.warn(`OCR API response failed (${response.status}):`, err);
+      throw new Error(`OCR failed (${response.status}): ${err}`);
+    }
+
+    const json = await response.json();
+    const message = json.choices?.[0]?.message;
+    const text = message?.content || message?.reasoning || "";
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  } catch (err) {
+    console.error("extractTextFromImage error:", err.message);
+    throw err;
+  }
 }
 
 module.exports = {

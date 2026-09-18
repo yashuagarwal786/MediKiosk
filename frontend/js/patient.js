@@ -25,6 +25,25 @@ const els = {
   listenQuestion: document.getElementById("listenQuestion")
 };
 
+// Clamp age input in real-time — no value above 100 allowed
+els.age.addEventListener("input", () => {
+  let val = parseInt(els.age.value, 10);
+  if (isNaN(val) || val < 1) {
+    els.age.value = "";
+  } else if (val > 100) {
+    els.age.value = 100;
+  }
+});
+els.age.addEventListener("keydown", (e) => {
+  // Block typing a third digit if current value is already >= 10
+  // and the resulting value would exceed 100
+  const val = parseInt(els.age.value + e.key, 10);
+  if (!isNaN(val) && val > 100 && e.key >= "0" && e.key <= "9") {
+    e.preventDefault();
+    els.age.value = 100;
+  }
+});
+
 function setStatus(element, message, type = "") {
   if (!element) return;
   element.textContent = message;

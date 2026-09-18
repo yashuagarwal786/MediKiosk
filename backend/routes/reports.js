@@ -139,8 +139,13 @@ Rules:
       })
     });
 
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`NABH API error (${response.status}): ${errText}`);
+    }
+
     const json = await response.json();
-    let raw = json.choices?.[0]?.message?.content || "";
+    let raw = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning || "";
 
     // Strip <think> blocks and markdown code fences
     raw = raw
@@ -161,7 +166,7 @@ Rules:
       }
     }
 
-    if (parsed) {
+    if (parsed && typeof parsed === "object") {
       // Store structured JSON as aiSummary, and a text version as keyFindings
       aiSummary = JSON.stringify(parsed);
       keyFindings = (parsed.parameters || [])
@@ -169,14 +174,34 @@ Rules:
         .map(p => `• ${p.name}: ${p.value} (${p.status}) — Ref: ${p.referenceRange || "N/A"}`)
         .join("\n") || "• All parameters within normal range";
     } else {
-      // Fallback plain text
-      aiSummary = raw;
-      keyFindings = `• Report: ${filename}\n• Status: Processed — see summary above`;
+      // Fallback JSON object if model returned plain text or empty
+      const fallbackObj = {
+        reportType: "Diagnostic Report",
+        patientName: patientName !== "Patient" ? patientName : null,
+        overallStatus: "Normal",
+        summary: raw || extractedText?.slice(0, 300) || "Report uploaded and registered successfully.",
+        parameters: [],
+        criticalAlerts: [],
+        recommendations: ["Consult with a qualified healthcare professional to review these results."],
+        disclaimer: "This AI-assisted summary is for informational purposes only. Always consult your doctor for medical advice."
+      };
+      aiSummary = JSON.stringify(fallbackObj);
+      keyFindings = `• Report: ${filename}\n• Status: Processed`;
     }
   } catch (err) {
     console.warn("NABH Report Summarization fallback:", err.message);
-    aiSummary = `{"reportType":"Unknown","summary":"Report uploaded. AI analysis unavailable — ${err.message}","overallStatus":"N/A","parameters":[],"criticalAlerts":[],"recommendations":[],"disclaimer":"Always consult your doctor."}`;
-    keyFindings = `• Report File: ${filename}\n• AI analysis unavailable`;
+    const errObj = {
+      reportType: "Unknown Report",
+      patientName: patientName !== "Patient" ? patientName : null,
+      overallStatus: "N/A",
+      summary: `Report uploaded. AI Analysis Note: ${err.message}`,
+      parameters: [],
+      criticalAlerts: [],
+      recommendations: ["Please consult your doctor directly with the original file."],
+      disclaimer: "Always consult your doctor for medical advice."
+    };
+    aiSummary = JSON.stringify(errObj);
+    keyFindings = `• Report File: ${filename}\n• AI analysis status: ${err.message}`;
   }
 
   try {

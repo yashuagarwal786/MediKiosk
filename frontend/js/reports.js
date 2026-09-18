@@ -76,12 +76,12 @@ function renderSingleReport(item) {
   } catch { data = null; }
 
   if (!data || typeof data !== "object") {
-    // Fallback: plain text display
+    const textToShow = item.ai_summary || item.key_findings || item.extracted_text || "Medical report processed. View findings above.";
     els.reportsList.innerHTML = `
-      <article class="case-card" style="border-left: 4px solid var(--primary);">
-        <h3>📄 ${item.filename}</h3>
-        <p style="color:var(--ink-secondary); font-size:0.85rem;">Patient: <strong>${item.patient_name || "N/A"}</strong> &nbsp;|&nbsp; ${formatDate(item.created_at)}</p>
-        <div style="margin-top:1rem; padding: 1rem; background: var(--bg-subtle); border-radius: 8px; white-space: pre-wrap; font-size:0.9rem;">${item.ai_summary || "No summary available."}</div>
+      <article class="case-card" style="border-left: 4px solid var(--primary); padding: 1.4rem;">
+        <h3 style="margin:0 0 4px;">📄 ${item.filename}</h3>
+        <p style="color:var(--ink-secondary); font-size:0.85rem; margin:0 0 1rem;">Patient: <strong>${item.patient_name || "N/A"}</strong> &nbsp;|&nbsp; Uploaded: ${formatDate(item.created_at)}</p>
+        <div style="padding: 1rem; background: var(--bg-subtle); border-radius: 8px; white-space: pre-wrap; font-size:0.9rem; line-height: 1.6; color: var(--ink-primary);">${textToShow}</div>
       </article>`;
     return;
   }
