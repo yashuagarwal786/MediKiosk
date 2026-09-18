@@ -1,6 +1,8 @@
 const table = document.getElementById("casesTable");
 const statusEl = document.getElementById("doctorStatus");
 let allCases = [];
+let refreshTimer = null;
+const REFRESH_INTERVAL = 5000;
 
 function setStatus(message, type = "") {
   statusEl.textContent = message;
@@ -72,19 +74,35 @@ function renderCases(cases) {
     .join("");
 }
 
-async function loadCases() {
-  setStatus("Loading patient cases...", "loading");
+async function refreshCases() {
   try {
     const response = await fetch("/api/cases");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Unable to load cases.");
     allCases = data.cases || [];
     renderCases(allCases);
-    setStatus(allCases.length ? "" : "No patient cases submitted yet. Cases will appear here once patients complete intake.");
+    setStatus(allCases.length ? `Last updated: ${new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true })}` : "No patient cases submitted yet. Cases will appear here once patients complete intake.");
   } catch (error) {
     setStatus(error.message, "error");
   }
 }
+
+async function loadCases() {
+  setStatus("Loading patient cases...", "loading");
+  await refreshCases();
+  startAutoRefresh();
+}
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshCases, REFRESH_INTERVAL);
+}
+
+document.getElementById("refreshCases").addEventListener("click", async () => {
+  setStatus("Refreshing...", "loading");
+  await refreshCases();
+  startAutoRefresh();
+});
 
 document.getElementById("searchCases").addEventListener("input", (event) => {
   const query = event.target.value.toLowerCase();

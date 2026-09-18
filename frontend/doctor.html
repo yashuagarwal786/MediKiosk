@@ -40,10 +40,13 @@
     </section>
 
     <section class="panel">
-      <div class="section-bar">
-        <h2>Patient Cases</h2>
-        <input id="searchCases" type="search" placeholder="Search by patient or symptoms...">
-      </div>
+        <div class="section-bar">
+          <h2>Patient Cases</h2>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input id="searchCases" type="search" placeholder="Search by patient or symptoms...">
+            <button class="button ghost" id="refreshCases" type="button" style="min-height: 36px; padding: 6px 12px; font-size: 0.85rem;">↻ Refresh</button>
+          </div>
+        </div>
       <div class="table-wrap">
         <table>
           <thead>
