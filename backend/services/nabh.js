@@ -135,7 +135,7 @@ function safeJsonParse(text, fallback) {
     if (match) {
       try {
         const parsed = JSON.parse(match[0]);
-        return parsed.patientHistory || parsed;
+        return parsed;
       } catch {}
     }
     return fallback;

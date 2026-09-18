@@ -21,7 +21,10 @@ try {
   console.warn("Could not create upload directory:", error.message);
 }
 
-const databaseReady = initDatabase();
+const databaseReady = initDatabase().catch((error) => {
+  console.error("Database initialization failed:", error);
+  process.exit(1);
+});
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));

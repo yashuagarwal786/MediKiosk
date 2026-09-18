@@ -108,7 +108,7 @@ Do NOT diagnose, prescribe, or recommend treatment. Do NOT include <think> tags 
       const findingsMatch = cleaned.match(/KEY FINDINGS:\s*([\s\S]*?)(?=IMPORTANT NOTE:|$)/i);
 
       if (summaryMatch?.[1]?.trim()) {
-        aiSummary = cleaned; // Store the full structured response as the summary
+        aiSummary = summaryMatch[1].trim();
       } else {
         aiSummary = cleaned;
       }
