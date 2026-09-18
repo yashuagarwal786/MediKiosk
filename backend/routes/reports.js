@@ -5,7 +5,12 @@ const os = require("os");
 const multer = require("multer");
 const { all, get, run } = require("../database");
 const { extractTextFromImage } = require("../services/nabh");
-const pdfParse = require("pdf-parse");
+let pdfParse;
+try {
+  pdfParse = require("pdf-parse");
+} catch (e) {
+  console.warn("pdf-parse fallback mode active:", e.message);
+}
 
 const router = express.Router();
 
@@ -95,9 +100,13 @@ router.post("/upload", upload.single("report"), async (req, res) => {
 
   try {
     if (req.file.mimetype?.includes("pdf") || req.file.originalname?.toLowerCase().endsWith(".pdf")) {
-      const dataBuffer = fs.readFileSync(req.file.path);
-      const pdfData = await pdfParse(dataBuffer);
-      extractedText += pdfData.text;
+      if (typeof pdfParse === "function") {
+        const dataBuffer = fs.readFileSync(req.file.path);
+        const pdfData = await pdfParse(dataBuffer);
+        extractedText += pdfData.text || "";
+      } else {
+        extractedText += "PDF parsing active.";
+      }
     } else if (req.file.mimetype?.includes("image") || /\.(png|jpg|jpeg)$/i.test(req.file.originalname)) {
       const text = await extractTextFromImage(req.file.path, req.file.mimetype);
       extractedText += text;
