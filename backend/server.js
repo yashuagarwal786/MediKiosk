@@ -74,8 +74,8 @@ app.use((error, req, res, next) => {
 if (require.main === module) {
   databaseReady
     .then(() => {
-    server.listen(port, () => {
-      console.log(`MediKiosk is running at http://localhost:${port}`);
+    server.listen(port, "0.0.0.0", () => {
+      console.log(`MediKiosk is running at http://0.0.0.0:${port}`);
     });
     })
     .catch((error) => {
