@@ -87,6 +87,7 @@ router.post("/upload", upload.single("report"), async (req, res) => {
   }
 
   const patientNameInput = req.body.patient_name?.trim();
+  const patientName = patientNameInput || "Patient";
   const filename = req.file.originalname || "Medical_Report";
   const fileType = req.file.mimetype || "application/octet-stream";
 
@@ -239,7 +240,8 @@ Rules:
     const saved = await get("SELECT * FROM reports WHERE id = ?", [result.id]);
     res.status(201).json({ report: saved, message: "Medical report uploaded and analyzed successfully!" });
   } catch (error) {
-    res.status(500).json({ error: "Unable to save report." });
+    console.error("Failed to save report to database:", error);
+    res.status(500).json({ error: error.message || "Unable to save report." });
   }
 });
 
