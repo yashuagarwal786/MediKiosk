@@ -13,6 +13,16 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ error: "Username, password and role are required." });
   }
 
+  if (username.trim().length < 3) {
+    return res.status(400).json({ error: "Username must be at least 3 characters." });
+  }
+
+  // Strong password: min 8 chars, 1 uppercase, 1 special character
+  const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({ error: "Password must be at least 8 characters, include one uppercase letter and one special character." });
+  }
+
   if (role !== "patient" && role !== "doctor") {
     return res.status(400).json({ error: "Role must be 'patient' or 'doctor'." });
   }

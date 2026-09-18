@@ -11,6 +11,7 @@ function getConfig() {
     llmModel: process.env.NABH_LLM_MODEL || "mistral-small-24b",
     embeddingModel: process.env.NABH_EMBEDDING_MODEL || "nomic-embed-text",
     imageModel: process.env.NABH_IMAGE_MODEL || "stable-diffusion-xl",
+    ocrModel: process.env.NABH_OCR_MODEL || "paddleocr-vl",
     sttModel: process.env.NABH_STT_MODEL || "whisper-large-v3-turbo",
     ttsModel: process.env.NABH_TTS_MODEL || "kokoro-tts",
     ttsVoice: process.env.NABH_TTS_VOICE || "af_bella"
@@ -374,6 +375,30 @@ async function generateImage(prompt) {
   throw new Error(SERVICE_ERROR);
 }
 
+async function extractTextFromImage(filePath, mimeType) {
+  const { ocrModel } = getConfig();
+  const fileBuffer = fs.readFileSync(filePath);
+  const base64Image = fileBuffer.toString("base64");
+  const dataUrl = `data:${mimeType || "image/jpeg"};base64,${base64Image}`;
+
+  const json = await nabhJson("/chat/completions", {
+    model: ocrModel,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Extract all the text from this image exactly as it appears. Do not add any extra conversation or formatting." },
+          { type: "image_url", image_url: { url: dataUrl } }
+        ]
+      }
+    ],
+    max_tokens: 1500
+  });
+
+  const message = json.choices?.[0]?.message;
+  return message?.content || message?.reasoning || "";
+}
+
 module.exports = {
   CONFIG_ERROR,
   SERVICE_ERROR,
@@ -382,5 +407,6 @@ module.exports = {
   generateEmbedding,
   speechToText,
   textToSpeech,
-  generateImage
+  generateImage,
+  extractTextFromImage
 };

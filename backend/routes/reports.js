@@ -4,7 +4,8 @@ const fs = require("fs");
 const os = require("os");
 const multer = require("multer");
 const { all, get, run } = require("../database");
-const { nabhJson, getConfig } = require("../services/nabh");
+const { extractTextFromImage } = require("../services/nabh");
+const pdfParse = require("pdf-parse");
 
 const router = express.Router();
 
@@ -51,30 +52,54 @@ router.post("/upload", upload.single("report"), async (req, res) => {
   const filename = req.file.originalname || "Medical_Report";
   const fileType = req.file.mimetype || "application/octet-stream";
 
-  let extractedText = `Medical Report: ${filename}\nDate: ${new Date().toLocaleDateString()}\nPatient: ${patientName}`;
+  let extractedText = `Medical Report: ${filename}\nDate: ${new Date().toLocaleDateString()}\nPatient: ${patientName}\n\n`;
 
-  if (req.file.mimetype?.includes("text") || req.file.originalname?.endsWith(".txt")) {
-    try {
-      extractedText = fs.readFileSync(req.file.path, "utf8");
-    } catch {}
-  } else {
-    extractedText += `\nExtracted content: Patient blood test & diagnostic panel results uploaded for review.`;
+  try {
+    if (req.file.mimetype?.includes("pdf") || req.file.originalname?.toLowerCase().endsWith(".pdf")) {
+      // Parse PDF
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const pdfData = await pdfParse(dataBuffer);
+      extractedText += pdfData.text;
+    } else if (req.file.mimetype?.includes("image") || /\.(png|jpg|jpeg)$/i.test(req.file.originalname)) {
+      // Perform OCR on Images using NABH PaddleOCR-VL model
+      const text = await extractTextFromImage(req.file.path, req.file.mimetype);
+      extractedText += text;
+    } else if (req.file.mimetype?.includes("text") || req.file.originalname?.toLowerCase().endsWith(".txt")) {
+      // Read plain text
+      extractedText += fs.readFileSync(req.file.path, "utf8");
+    } else {
+      extractedText += "Unsupported file format for text extraction. Only PDF, Images, and TXT are supported.";
+    }
+  } catch (error) {
+    console.error("Text extraction failed:", error);
+    extractedText += "\nError extracting content from the file.";
   }
 
   let aiSummary = "Medical report uploaded successfully. Please consult your doctor for a detailed interpretation.";
   let keyFindings = `• Report File: ${filename}\n• Status: Uploaded and ready for doctor review`;
 
   try {
-    const { llmModel } = getConfig();
-    const json = await nabhJson("/chat/completions", {
-      model: llmModel,
-      temperature: 0.2,
-      max_tokens: 800,
-      messages: [
-        {
-          role: "system",
-          content:
-            `You are a medical report analysis assistant. Analyze the provided medical report details and produce a structured, detailed, patient-friendly summary. 
+    const apiKey = process.env.NABH_API_KEY;
+    const baseUrl = process.env.NABH_BASE_URL || "https://api.nabh.cloud/v1";
+    const llmModel = process.env.NABH_LLM_MODEL || "qwen3-5-397b";
+
+    if (!apiKey) throw new Error("AI not configured");
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: llmModel,
+        temperature: 0.2,
+        max_tokens: 800,
+        messages: [
+          {
+            role: "system",
+            content: `You are a medical report analysis assistant. Analyze the provided medical report details and produce a structured, detailed, patient-friendly summary.
 Structure your response EXACTLY as follows (use these exact section headers):
 
 PATIENT: [Patient name if available, else "Not specified"]
@@ -88,14 +113,16 @@ KEY FINDINGS:
 IMPORTANT NOTE: This is an AI-assisted summary for informational purposes only. Always consult your doctor for medical advice.
 
 Do NOT diagnose, prescribe, or recommend treatment. Do NOT include <think> tags or reasoning text.`
-        },
-        {
-          role: "user",
-          content: `Patient Name: ${patientName}\nReport Filename: ${filename}\nReport Contents:\n${extractedText}\n\nProvide a detailed, structured analysis following the format above:`
-        }
-      ]
+          },
+          {
+            role: "user",
+            content: `Patient Name: ${patientName}\nReport Filename: ${filename}\nReport Contents:\n${extractedText}\n\nProvide a detailed, structured analysis following the format above:`
+          }
+        ]
+      })
     });
 
+    const json = await response.json();
     const messageContent = json.choices?.[0]?.message?.content || "";
     if (messageContent) {
       const cleaned = messageContent
@@ -103,21 +130,14 @@ Do NOT diagnose, prescribe, or recommend treatment. Do NOT include <think> tags 
         .replace(/Thinking Process[\s\S]*?(?=PATIENT:|REPORT TYPE:|SUMMARY:)/i, "")
         .trim();
 
-      // Split the structured response into ai_summary (summary section) and key_findings (findings section)
       const summaryMatch = cleaned.match(/SUMMARY:\s*([\s\S]*?)(?=KEY FINDINGS:|IMPORTANT NOTE:|$)/i);
       const findingsMatch = cleaned.match(/KEY FINDINGS:\s*([\s\S]*?)(?=IMPORTANT NOTE:|$)/i);
 
-      if (summaryMatch?.[1]?.trim()) {
-        aiSummary = summaryMatch[1].trim();
-      } else {
-        aiSummary = cleaned;
-      }
+      if (summaryMatch?.[1]?.trim()) aiSummary = summaryMatch[1].trim();
+      else aiSummary = cleaned;
 
-      if (findingsMatch?.[1]?.trim()) {
-        keyFindings = findingsMatch[1].trim();
-      } else {
-        keyFindings = cleaned;
-      }
+      if (findingsMatch?.[1]?.trim()) keyFindings = findingsMatch[1].trim();
+      else keyFindings = cleaned;
     }
   } catch (err) {
     console.warn("NABH Report Summarization fallback:", err.message);

@@ -55,6 +55,11 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Name, age, gender, and complaint are required." });
   }
 
+  const ageNum = Number(age);
+  if (!Number.isInteger(ageNum) || ageNum < 1 || ageNum > 100) {
+    return res.status(400).json({ error: "Age must be a valid number between 1 and 100." });
+  }
+
   const summaryText = compactSummary(ai_summary);
   const caseText = `${complaint}\n${symptoms || ""}\n${history || ""}\n${summaryText}`;
   let embedding = null;
