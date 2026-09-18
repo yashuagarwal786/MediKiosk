@@ -92,25 +92,6 @@ function renderSingleReport(item) {
 
   const paramRow = (p) => `
     <tr style="border-bottom: 1px solid var(--border-subtle);">
-      <td style="padding: 8px 10px; font-weight: ${p.flag ? "600" : "400"}; color: ${p.flag ? getStatusColor(p.status) : "var(--ink-primary)"};">
-        ${p.flag ? "⚑ " : ""}${p.name}
-      </td>
-      <td style="padding: 8px 10px; font-weight: 600; color: ${getStatusColor(p.status)};">${p.value || "—"}</td>
-      <td style="padding: 8px 10px; color: var(--ink-secondary); font-size: 0.85rem;">${p.referenceRange || "—"}</td>
-      <td style="padding: 8px 10px;">
-        <span style="padding: 2px 10px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;
-          background: ${getStatusColor(p.status)}22; color: ${getStatusColor(p.status)};">
-          ${p.status || "—"}
-        </span>
-      </td>
-    </tr>`;
-
-  const badge = getOverallBadge(data.overallStatus);
-  const flaggedParams = (data.parameters || []).filter(p => p.flag);
-  const normalParams  = (data.parameters || []).filter(p => !p.flag);
-
-  const paramRow = (p) => `
-    <tr style="border-bottom: 1px solid var(--border-subtle);">
       <td style="padding: 10px 12px; font-weight: ${p.flag ? "700" : "500"}; color: ${p.flag ? getStatusColor(p.status) : "var(--ink-primary)"};">
         ${p.flag ? "⚠️ " : ""}${p.name}
       </td>
