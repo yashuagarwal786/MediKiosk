@@ -4,13 +4,38 @@ const { generateEmbedding } = require("../services/nabh");
 
 const router = express.Router();
 
+function formatSymptoms(sym) {
+  if (!sym) return "Not specified";
+  if (typeof sym === "string") return sym;
+  if (Array.isArray(sym)) {
+    return sym
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "object" && item !== null) {
+          return item.name || item.symptom || item.description || Object.values(item).filter(v => typeof v === 'string' || typeof v === 'number').join(" - ") || JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(", ");
+  }
+  if (typeof sym === "object" && sym !== null) {
+    if (sym.description || sym.name || sym.symptom) {
+      return sym.description || sym.name || sym.symptom;
+    }
+    return Object.entries(sym)
+      .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
+      .join(", ");
+  }
+  return String(sym);
+}
+
 function compactSummary(summary) {
   if (!summary) return "";
   if (typeof summary === "string") return summary;
   return [
     `Chief Complaint: ${summary.chiefComplaint || "Not specified"}`,
     `Duration: ${summary.duration || "Not specified"}`,
-    `Symptoms: ${Array.isArray(summary.symptoms) ? summary.symptoms.join(", ") : summary.symptoms || "Not specified"}`,
+    `Symptoms: ${formatSymptoms(summary.symptoms)}`,
     `Additional Information: ${typeof summary.additionalInformation === "string" ? summary.additionalInformation : Array.isArray(summary.additionalInformation) ? summary.additionalInformation.join(", ") : summary.additionalInformation ? JSON.stringify(summary.additionalInformation) : "Not specified"}`,
     `Important Information: ${summary.importantInformation || "History assistant only. No diagnosis generated."}`
   ].join("\n");

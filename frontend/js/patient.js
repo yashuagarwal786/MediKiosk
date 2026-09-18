@@ -60,8 +60,33 @@ async function apiJson(url, options = {}) {
   return data;
 }
 
+function formatSymptoms(sym) {
+  if (!sym) return "Not specified";
+  if (typeof sym === "string") return sym;
+  if (Array.isArray(sym)) {
+    return sym
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "object" && item !== null) {
+          return item.name || item.symptom || item.description || Object.values(item).filter(v => typeof v === 'string' || typeof v === 'number').join(" - ") || JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(", ");
+  }
+  if (typeof sym === "object" && sym !== null) {
+    if (sym.description || sym.name || sym.symptom) {
+      return sym.description || sym.name || sym.symptom;
+    }
+    return Object.entries(sym)
+      .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
+      .join(", ");
+  }
+  return String(sym);
+}
+
 function renderSummary(summary) {
-  const symptoms = Array.isArray(summary.symptoms) ? summary.symptoms.join(", ") : summary.symptoms;
+  const symptoms = formatSymptoms(summary.symptoms);
   const additionalInfo = typeof summary.additionalInformation === "string"
     ? summary.additionalInformation
     : Array.isArray(summary.additionalInformation)
@@ -73,7 +98,7 @@ function renderSummary(summary) {
   els.summaryBox.innerHTML = `
     <p><strong>Chief Complaint:</strong> ${summary.chiefComplaint || "Not specified"}</p>
     <p><strong>Duration:</strong> ${summary.duration || "Not specified"}</p>
-    <p><strong>Symptoms:</strong> ${symptoms || "Not specified"}</p>
+    <p><strong>Symptoms:</strong> ${symptoms}</p>
     <p><strong>Additional Information:</strong> ${additionalInfo}</p>
     <p><strong>Important Information:</strong> ${summary.importantInformation || "History support only. No diagnosis generated."}</p>
   `;
