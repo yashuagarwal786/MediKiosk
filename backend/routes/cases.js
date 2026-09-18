@@ -87,6 +87,10 @@ router.post("/", async (req, res) => {
       ]
     );
     const saved = await get("SELECT * FROM cases WHERE id = ?", [result.id]);
+    
+    // Emit real-time event for zero-delay updates
+    req.app.get("io").emit("new_case", saved);
+    
     res.status(201).json({ case: saved, warning: aiWarning });
   } catch (error) {
     res.status(500).json({ error: "Unable to save case." });

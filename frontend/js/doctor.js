@@ -94,9 +94,22 @@ async function loadCases() {
 }
 
 function startAutoRefresh() {
+  // We use WebSockets instead of polling for true zero-delay
   if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshCases, REFRESH_INTERVAL);
 }
+
+// Socket.io for true zero delay
+const socket = io();
+socket.on("new_case", (newCase) => {
+  allCases.unshift(newCase); // Add to the top of the array
+  renderCases(allCases);
+  setStatus(`New case received: ${newCase.name}`, "success");
+  
+  // Reset status after a few seconds
+  setTimeout(() => {
+    setStatus(`Last updated: ${new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true })}`);
+  }, 4000);
+});
 
 document.getElementById("refreshCases").addEventListener("click", async () => {
   setStatus("Refreshing...", "loading");

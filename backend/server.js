@@ -9,6 +9,14 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 dotenv.config();
 
 const app = express();
+const http = require("http");
+const { Server } = require("socket.io");
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Make io available to routes
+app.set("io", io);
+
 const port = process.env.PORT || 3000;
 const frontendPath = path.join(__dirname, "..", "frontend");
 const uploadPath = process.env.VERCEL
@@ -40,11 +48,14 @@ app.use(async (req, res, next) => {
 });
 
 app.use("/api", require("./routes/ai"));
+app.use("/api/auth", require("./routes/auth"));
 app.use("/api/cases", require("./routes/cases"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/reminders", require("./routes/reminders"));
 
 app.get("/", (req, res) => res.sendFile(path.join(frontendPath, "index.html")));
+app.get("/login", (req, res) => res.sendFile(path.join(frontendPath, "login.html")));
+app.get("/register", (req, res) => res.sendFile(path.join(frontendPath, "register.html")));
 app.get("/patient", (req, res) => res.sendFile(path.join(frontendPath, "patient.html")));
 app.get("/doctor", (req, res) => res.sendFile(path.join(frontendPath, "doctor.html")));
 app.get("/reports", (req, res) => res.sendFile(path.join(frontendPath, "reports.html")));
@@ -63,7 +74,7 @@ app.use((error, req, res, next) => {
 if (require.main === module) {
   databaseReady
     .then(() => {
-    app.listen(port, () => {
+    server.listen(port, () => {
       console.log(`MediKiosk is running at http://localhost:${port}`);
     });
     })

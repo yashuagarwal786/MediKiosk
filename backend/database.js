@@ -4,16 +4,11 @@ const os = require("os");
 const sqlite3 = require("sqlite3").verbose();
 
 function getDbPath() {
-  if (process.env.VERCEL) {
-    return path.join(os.tmpdir(), "medikiosk_database.sqlite");
-  }
   const defaultDir = path.join(__dirname, "..", "data");
-  try {
+  if (!fs.existsSync(defaultDir)) {
     fs.mkdirSync(defaultDir, { recursive: true });
-    return path.join(defaultDir, "database.sqlite");
-  } catch {
-    return path.join(os.tmpdir(), "medikiosk_database.sqlite");
   }
+  return path.join(defaultDir, "database.sqlite");
 }
 
 const dbPath = getDbPath();
@@ -88,6 +83,16 @@ async function initDatabase() {
       time TEXT NOT NULL,
       frequency TEXT DEFAULT 'Daily',
       status TEXT DEFAULT 'Active',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('patient', 'doctor')),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
