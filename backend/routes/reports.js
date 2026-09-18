@@ -75,8 +75,8 @@ router.post("/upload", upload.single("report"), async (req, res) => {
     extractedText += "\nError extracting content from the file.";
   }
 
-  let aiSummary = "Medical report uploaded successfully. Please consult your doctor for a detailed interpretation.";
-  let keyFindings = `• Report File: ${filename}\n• Status: Uploaded and ready for doctor review`;
+  let aiSummary = "";
+  let keyFindings = "";
 
   try {
     const apiKey = process.env.NABH_API_KEY;
@@ -94,53 +94,89 @@ router.post("/upload", upload.single("report"), async (req, res) => {
       },
       body: JSON.stringify({
         model: llmModel,
-        temperature: 0.2,
-        max_tokens: 800,
+        temperature: 0.1,
+        max_tokens: 1500,
         messages: [
           {
             role: "system",
-            content: `You are a medical report analysis assistant. Analyze the provided medical report details and produce a structured, detailed, patient-friendly summary.
-Structure your response EXACTLY as follows (use these exact section headers):
+            content: `You are a clinical medical report analysis assistant. Analyze the provided medical report text and return a structured JSON object ONLY — no markdown, no explanation, no <think> tags.
 
-PATIENT: [Patient name if available, else "Not specified"]
-REPORT TYPE: [Type of report, e.g., Blood Test, CBC, X-Ray, Prescription]
-SUMMARY: [2-3 plain-language sentences explaining the overall findings in simple terms a patient can understand]
-KEY FINDINGS:
-• [Finding 1 with value and status: Normal / Mildly Elevated / Elevated / Low]
-• [Finding 2 with value and status]
-• [Finding 3 with value and status]
-• [Add more findings as present in the report]
-IMPORTANT NOTE: This is an AI-assisted summary for informational purposes only. Always consult your doctor for medical advice.
+Return this exact JSON structure:
+{
+  "patientName": "string or null",
+  "reportType": "string (e.g. CBC, Blood Test, LFT, Urine Analysis, X-Ray Report, etc.)",
+  "labName": "string or null",
+  "reportDate": "string or null",
+  "doctorName": "string or null",
+  "overallStatus": "Normal | Borderline | Abnormal | Critical",
+  "summary": "2-3 plain English sentences explaining findings for a patient",
+  "parameters": [
+    {
+      "name": "test/parameter name",
+      "value": "reported value with unit",
+      "referenceRange": "normal range if available",
+      "status": "Normal | Low | High | Critical | N/A",
+      "flag": true or false
+    }
+  ],
+  "criticalAlerts": ["list of critical or flagged findings that need urgent attention, or empty array"],
+  "recommendations": ["general lifestyle or follow-up suggestions — NO diagnosis or prescriptions"],
+  "disclaimer": "This AI-generated summary is for informational purposes only. Always consult your doctor for medical advice."
+}
 
-Do NOT diagnose, prescribe, or recommend treatment. Do NOT include <think> tags or reasoning text.`
+Rules:
+- Extract every individual lab parameter with its value and reference range.
+- Set "flag": true for any value outside the reference range.
+- overallStatus: "Critical" if any critical alert exists, "Abnormal" if any parameter is flagged, "Borderline" if borderline, else "Normal".
+- Do NOT diagnose, prescribe medication, or make clinical decisions.
+- Output ONLY the raw JSON object. No markdown code blocks.`
           },
           {
             role: "user",
-            content: `Patient Name: ${patientName}\nReport Filename: ${filename}\nReport Contents:\n${extractedText}\n\nProvide a detailed, structured analysis following the format above:`
+            content: `Patient Name: ${patientName}\nReport Filename: ${filename}\n\nExtracted Report Text:\n${extractedText}\n\nAnalyze and return structured JSON:`
           }
         ]
       })
     });
 
     const json = await response.json();
-    const messageContent = json.choices?.[0]?.message?.content || "";
-    if (messageContent) {
-      const cleaned = messageContent
-        .replace(/<think>[\s\S]*?<\/think>/gi, "")
-        .replace(/Thinking Process[\s\S]*?(?=PATIENT:|REPORT TYPE:|SUMMARY:)/i, "")
-        .trim();
+    let raw = json.choices?.[0]?.message?.content || "";
 
-      const summaryMatch = cleaned.match(/SUMMARY:\s*([\s\S]*?)(?=KEY FINDINGS:|IMPORTANT NOTE:|$)/i);
-      const findingsMatch = cleaned.match(/KEY FINDINGS:\s*([\s\S]*?)(?=IMPORTANT NOTE:|$)/i);
+    // Strip <think> blocks and markdown code fences
+    raw = raw
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/```json\s*/i, "")
+      .replace(/```/g, "")
+      .trim();
 
-      if (summaryMatch?.[1]?.trim()) aiSummary = summaryMatch[1].trim();
-      else aiSummary = cleaned;
+    // Try to parse JSON
+    let parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Try extracting JSON object from response
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        try { parsed = JSON.parse(match[0]); } catch {}
+      }
+    }
 
-      if (findingsMatch?.[1]?.trim()) keyFindings = findingsMatch[1].trim();
-      else keyFindings = cleaned;
+    if (parsed) {
+      // Store structured JSON as aiSummary, and a text version as keyFindings
+      aiSummary = JSON.stringify(parsed);
+      keyFindings = (parsed.parameters || [])
+        .filter(p => p.flag)
+        .map(p => `• ${p.name}: ${p.value} (${p.status}) — Ref: ${p.referenceRange || "N/A"}`)
+        .join("\n") || "• All parameters within normal range";
+    } else {
+      // Fallback plain text
+      aiSummary = raw;
+      keyFindings = `• Report: ${filename}\n• Status: Processed — see summary above`;
     }
   } catch (err) {
     console.warn("NABH Report Summarization fallback:", err.message);
+    aiSummary = `{"reportType":"Unknown","summary":"Report uploaded. AI analysis unavailable — ${err.message}","overallStatus":"N/A","parameters":[],"criticalAlerts":[],"recommendations":[],"disclaimer":"Always consult your doctor."}`;
+    keyFindings = `• Report File: ${filename}\n• AI analysis unavailable`;
   }
 
   try {
@@ -152,7 +188,7 @@ Do NOT diagnose, prescribe, or recommend treatment. Do NOT include <think> tags 
     );
 
     const saved = await get("SELECT * FROM reports WHERE id = ?", [result.id]);
-    res.status(201).json({ report: saved, message: "Medical report uploaded and summarized successfully!" });
+    res.status(201).json({ report: saved, message: "Medical report uploaded and analyzed successfully!" });
   } catch (error) {
     res.status(500).json({ error: "Unable to save report." });
   }

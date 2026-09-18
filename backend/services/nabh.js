@@ -376,27 +376,65 @@ async function generateImage(prompt) {
 }
 
 async function extractTextFromImage(filePath, mimeType) {
-  const { ocrModel } = getConfig();
+  ensureConfigured();
+  const { apiKey, baseUrl, ocrModel } = getConfig();
   const fileBuffer = fs.readFileSync(filePath);
   const base64Image = fileBuffer.toString("base64");
   const dataUrl = `data:${mimeType || "image/jpeg"};base64,${base64Image}`;
 
-  const json = await nabhJson("/chat/completions", {
+  // Use model-scoped path as shown in NABH documentation
+  const modelUrl = `${baseUrl}/models/${ocrModel}/chat/completions`;
+
+  const payload = {
     model: ocrModel,
     messages: [
       {
         role: "user",
         content: [
-          { type: "text", text: "Extract all the text from this image exactly as it appears. Do not add any extra conversation or formatting." },
+          {
+            type: "text",
+            text: "You are a medical document OCR engine. Extract ALL text from this medical report image completely and accurately. Preserve the exact layout including: patient details, test names, values, reference ranges, units, dates, doctor name, lab name, and any remarks. Output only the raw extracted text with no commentary."
+          },
           { type: "image_url", image_url: { url: dataUrl } }
         ]
       }
     ],
-    max_tokens: 1500
+    max_tokens: 2000
+  };
+
+  let response = await fetch(modelUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
   });
 
+  // Fallback to generic completions if model-scoped path fails
+  if (!response.ok && response.status === 404) {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  }
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`OCR failed (${response.status}): ${err}`);
+  }
+
+  const json = await response.json();
   const message = json.choices?.[0]?.message;
-  return message?.content || message?.reasoning || "";
+  const text = message?.content || message?.reasoning || "";
+  // Strip any residual <think> blocks
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 module.exports = {
