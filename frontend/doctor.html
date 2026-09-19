@@ -35,10 +35,22 @@
     </section>
 
     <section class="stats-grid">
-      <article><span id="totalCases">0</span><p>Total Cases</p></article>
-      <article><span id="todayCases">0</span><p>Today's Cases</p></article>
-      <article><span id="pendingCases">0</span><p>Pending Review</p></article>
-      <article><span id="completedCases">0</span><p>Completed</p></article>
+      <article>
+        <span id="totalCases">0</span>
+        <p>Total Cases</p>
+      </article>
+      <article>
+        <span id="todayCases">0</span>
+        <p>Today's Cases</p>
+      </article>
+      <article>
+        <span id="pendingCases">0</span>
+        <p>Pending Review</p>
+      </article>
+      <article>
+        <span id="completedCases">0</span>
+        <p>Completed</p>
+      </article>
     </section>
 
     <section class="panel">
@@ -61,7 +73,15 @@
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="casesTable"></tbody>
+          <tbody id="casesTable">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 40px; color: var(--ink-muted);">
+                <div class="skeleton long" style="width: 100%; height: 20px; margin-bottom: 8px;"></div>
+                <div class="skeleton medium" style="width: 60%;"></div>
+                Loading cases...
+              </td>
+            </tr>
+          </tbody>
         </table>
       </div>
       <p id="doctorStatus" class="status-line"></p>

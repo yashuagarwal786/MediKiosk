@@ -33,6 +33,14 @@
       <p>This assistant helps organize your history for the doctor. It does not provide medical diagnosis or treatment.</p>
     </section>
 
+    <div class="step-indicator" id="stepIndicator">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-connector"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-connector"></div>
+      <div class="step-dot" data-step="3"></div>
+    </div>
+
     <section class="two-column">
       <form id="patientForm" class="panel">
         <h2>Patient Information</h2>
@@ -54,8 +62,10 @@
         <label>Chief complaint<input id="complaint" type="text" required placeholder="e.g. fever, headache, back pain"></label>
         <label>Describe your symptoms<textarea id="symptoms" rows="6" placeholder="Describe your symptoms in detail or click Speak Symptoms below..."></textarea></label>
         <div class="button-row">
-          <button class="button secondary" type="button" id="recordSymptoms">Speak Symptoms</button>
-          <button class="button ghost" type="button" id="typeManually">Type Manually</button>
+          <button type="button" class="voice-btn" id="recordSymptoms">
+            <span class="voice-icon"></span> Speak Symptoms
+          </button>
+          <button type="button" class="button ghost" id="typeManually">Type Manually</button>
         </div>
         <p id="speechStatus" class="status-line"></p>
       </form>

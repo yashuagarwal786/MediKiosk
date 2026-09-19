@@ -28,7 +28,7 @@
 
   <main class="app-shell">
     <section class="page-heading">
-      <p class="eyebrow"><a href="/doctor" style="color: var(--primary);">&larr; Doctor Dashboard</a> / Case Details</p>
+      <p class="eyebrow"><a href="/doctor" style="color: var(--primary); font-weight: 600;">&larr; Doctor Dashboard</a> / Case Details</p>
       <h1 id="caseTitle">Loading case...</h1>
       <p>Clinical history support only. Similar cases and generated illustrations are for reference and educational context.</p>
     </section>
@@ -45,7 +45,12 @@
             </select>
           </div>
         </div>
-        <dl class="details-list" id="detailsList"></dl>
+        <dl class="details-list" id="detailsList">
+          <div>
+            <dt>Loading...</dt>
+            <dd><div class="skeleton medium"></div></dd>
+          </div>
+        </dl>
       </article>
 
       <article class="panel">

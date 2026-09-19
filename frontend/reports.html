@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/theme.js"></script>
-<script src="/js/auth.js"></script>
+  <script src="/js/auth.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -43,7 +43,7 @@
           <input type="file" id="reportFile" accept=".pdf,.png,.jpg,.jpeg,.txt" required style="display: none;">
           <button type="button" class="button secondary" id="browseBtn">Select File</button>
           <div id="fileInfo" class="file-info" style="display: none; margin-top: 12px; font-weight: 600; color: var(--primary);"></div>
-          
+
           <div style="margin-top: 16px; width: 100%;">
             <label style="text-align: left;">Patient Name (Optional)
               <input type="text" id="patientName" placeholder="e.g. Rahul Sharma">
@@ -57,7 +57,12 @@
       <article class="panel">
         <h2>Your Report Analysis</h2>
         <p style="color: var(--ink-secondary); font-size: 0.85rem; margin-bottom: 12px;">Upload a report on the left to see your personalized AI summary here.</p>
-        <div id="reportsList" class="card-stack">Loading...</div>
+        <div id="reportsList" class="card-stack">
+          <div class="skeleton long"></div>
+          <div class="skeleton medium"></div>
+          <div class="skeleton short"></div>
+          Loading reports...
+        </div>
       </article>
     </section>
   </main>
