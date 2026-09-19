@@ -17,6 +17,15 @@ if (isPg) {
       ? false
       : { rejectUnauthorized: false }
   });
+  
+  pgPool.on('error', (err) => {
+    console.error('[DB] Unexpected PostgreSQL pool error:', err);
+  });
+  
+  // Test connection immediately
+  pgPool.query('SELECT NOW()')
+    .then(() => console.log('[DB] PostgreSQL connection verified'))
+    .catch(err => console.error('[DB] PostgreSQL connection failed:', err.message));
 } else {
   function getDbPath() {
     if (process.env.VERCEL) {
