@@ -23,6 +23,156 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function parseParameterLine(line) {
+  let clean = line.replace(/\t/g, "    ").trim();
+  if (!/[0-9]/.test(clean)) return null;
+
+  const ignored = /^(?:date|time|phone|mobile|report|test|result|units?|reference|range|patient|age|gender|doctor|lab|address|barcode|sample)(?:\s|:|$)/i;
+  if (ignored.test(clean)) return null;
+
+  const statusMatch = clean.match(/\((Normal|Abnormal|High|Low|Critical|Borderline|H|L|N)\)\s*$/i);
+  const status = statusMatch ? statusMatch[1] : "";
+  let body = statusMatch ? clean.slice(0, statusMatch.index).trim() : clean;
+  body = body.replace(/\s*\*\s*$/, "");
+
+  const columnMatch = body.match(/^([^\d]+?)\s{2,}(.+)$/);
+  const source = columnMatch?.[2] || body;
+  const name = columnMatch?.[1]?.trim().replace(/\s*[:\-]\s*$/, "") || body;
+  const numericCount = (source.match(/\d/g) || []).length;
+  if (!name || name.length < 2 || name.length > 100 || numericCount < 1) return null;
+
+  const valueMatch = source.match(/^(\d[\d.,]*\s*(?:[A-Za-z/%]{0,15}))\s*(.*)$/);
+  if (!valueMatch) return null;
+
+  const value = valueMatch[1].trim();
+  const referenceRange = valueMatch[2]?.trim() || "";
+  if (!/[0-9]/.test(value)) return null;
+
+  return {
+    name: name.replace(/\s+/g, " "),
+    value,
+    referenceRange,
+    status
+  };
+}
+
+function parseExtractedReport(rawText) {
+  const metadataPatterns = [
+    { key: "patientName", label: "Patient Name", pattern: /^(?:patient(?:\s+name)?|name)\s*[:\-]?\s*(.+)$/i, valid: value => !/test|parameter|lab/i.test(value) },
+    { key: "ageGender", label: "Age / Gender", pattern: /^(?:age(?:\s*\/\s*gender)?|age and gender)\s*[:\-]?\s*(.+)$/i },
+    { key: "reportType", label: "Report Type", pattern: /^(?:report(?:\s+type)?|test profile|investigation)\s*[:\-]?\s*(.+)$/i },
+    { key: "labName", label: "Diagnostic Lab", pattern: /^(?:lab(?:oratory)?(?:\s+name)?|diagnostic lab)\s*[:\-]?\s*(.+)$/i },
+    { key: "reportDate", label: "Report Date", pattern: /^(?:report\s+date|date)\s*[:\-]?\s*(.+)$/i },
+    { key: "doctorName", label: "Ref. Doctor", pattern: /^(?:ref(?:erence)?\s+(?:doctor|physician)|doctor(?:\s+name)?|consultant)\s*[:\-]?\s*(.+)$/i }
+  ];
+
+  const lines = String(rawText || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const metadata = {};
+  const parameters = [];
+  const notes = [];
+
+  for (const line of lines) {
+    let matchedMetadata = false;
+    for (const field of metadataPatterns) {
+      const match = line.match(field.pattern);
+      if (!match) continue;
+      const value = match[1].trim();
+      if (!value || (field.valid && !field.valid(value))) continue;
+      metadata[field.key] = value;
+      metadata[`${field.key}Label`] = field.label;
+      matchedMetadata = true;
+      break;
+    }
+    if (matchedMetadata) continue;
+
+    const parameter = parseParameterLine(line);
+    if (parameter) {
+      parameters.push(parameter);
+      continue;
+    }
+
+    if (!/^(?:medical report|report text|extracted text|patient details|test details)$/i.test(line)) {
+      notes.push(line);
+    }
+  }
+
+  return { metadata, parameters, notes };
+}
+
+function formatExtractedReport(rawText) {
+  const parsed = parseExtractedReport(rawText);
+  const metadata = Object.entries(parsed.metadata)
+    .filter(([key, value]) => !key.endsWith("Label") && value)
+    .map(([key, value]) => ({
+      label: parsed.metadata[`${key}Label`] || key.replace(/([A-Z])/g, " $1").trim(),
+      value
+    }));
+
+  const metadataHtml = metadata.length ? `
+    <div class="extracted-report__meta">
+      ${metadata.map(item => `
+        <div class="extracted-report__meta-item">
+          <span class="extracted-report__meta-label">${escapeHtml(item.label)}</span>
+          <strong class="extracted-report__meta-value">${escapeHtml(item.value)}</strong>
+        </div>`).join("")}
+    </div>` : "";
+
+  const parameterHtml = parsed.parameters.length ? `
+    <div class="extracted-report__table-wrap">
+      <table class="extracted-report__table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Observed Value</th>
+            <th>Reference Range</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${parsed.parameters.map(parameter => `
+            <tr>
+              <td>${escapeHtml(parameter.name)}</td>
+              <td><strong>${escapeHtml(parameter.value)}</strong></td>
+              <td>${escapeHtml(parameter.referenceRange || "—")}</td>
+              <td>${parameter.status ? `<span class="extracted-report__status extracted-report__status--${escapeHtml(parameter.status.toLowerCase())}">${escapeHtml(parameter.status)}</span>` : "—"}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : "";
+
+  const notesHtml = parsed.notes.length ? `
+    <div class="extracted-report__notes">
+      <div class="extracted-report__subsection-title">Additional Extracted Details</div>
+      ${parsed.notes.slice(0, 30).map(line => `<div class="extracted-report__note">${escapeHtml(line)}</div>`).join("")}
+    </div>` : "";
+
+  return `
+    <section class="extracted-report">
+      <div class="extracted-report__header">
+        <div>
+          <span class="extracted-report__icon">📝</span>
+          <div>
+            <div class="extracted-report__title">Extracted Report Text</div>
+            <p class="extracted-report__subtitle">OCR content organized into report details and test values</p>
+          </div>
+        </div>
+        <span class="extracted-report__count">${parsed.parameters.length} detected values</span>
+      </div>
+      ${metadataHtml}
+      ${parameterHtml}
+      ${notesHtml}
+      <details class="extracted-report__raw">
+        <summary>View raw OCR text</summary>
+        <pre>${escapeHtml(rawText || "No OCR text was returned.")}</pre>
+      </details>
+    </section>`;
+}
+
 function formatDate(value) {
   try {
     let str = String(value).trim();
@@ -181,13 +331,7 @@ function renderSingleReport(item) {
           </div>` : ""}
         </div>
 
-        ${extractedText ? `
-        <div style="background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.4rem;">
-          <div style="font-weight: 700; font-size: 0.88rem; color: var(--primary); margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
-            <span>📝</span> <span>Extracted Report Text</span>
-          </div>
-          <pre style="margin: 0; padding: 1rem; background: var(--bg-base); border-radius: 8px; white-space: pre-wrap; word-break: break-word; font: 0.88rem/1.6 inherit; color: var(--ink-primary); max-height: 360px; overflow: auto;">${escapeHtml(extractedText)}</pre>
-        </div>` : ""}
+        ${extractedText ? formatExtractedReport(extractedText) : ""}
 
         <!-- Clinical Summary Bullet Points (Each on a new line) -->
         ${summaryHtml ? `
