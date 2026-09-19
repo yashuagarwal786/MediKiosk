@@ -8,7 +8,9 @@ const isPg = Boolean(process.env.DATABASE_URL);
 let pgPool = null;
 let sqliteDb = null;
 
+console.log(`[DB] Using ${isPg ? 'PostgreSQL' : 'SQLite'} database`);
 if (isPg) {
+  console.log(`[DB] DATABASE_URL: ${process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@')}`);
   pgPool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL.includes("localhost") || process.env.DATABASE_URL.includes("127.0.0.1")
@@ -90,6 +92,7 @@ async function all(sql, params = []) {
 }
 
 async function initDatabase() {
+  console.log('[DB] Initializing database tables...');
   await run(`
     CREATE TABLE IF NOT EXISTS cases (
       id ${isPg ? "SERIAL PRIMARY KEY" : "INTEGER PRIMARY KEY AUTOINCREMENT"},
@@ -142,6 +145,7 @@ async function initDatabase() {
       created_at ${isPg ? "TIMESTAMP NOT NULL DEFAULT NOW()" : "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"}
     )
   `);
+  console.log('[DB] Database tables initialized successfully');
 }
 
 async function getAllCases() {
