@@ -239,7 +239,7 @@ Rules:
     }
 
     const json = await response.json();
-    let raw = json.choices?.[0]?.message?.content || json.choices?[0]?.message?.reasoning || "";
+    let raw = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning || "";
 
     console.log(`[REPORTS] NABH API response raw (first 500 chars): ${raw.substring(0, 500)}`);
 
