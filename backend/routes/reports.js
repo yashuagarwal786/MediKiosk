@@ -259,6 +259,7 @@ Rules:
         reportType: "Medical Report Analysis",
         patientName: patientNameInput || null,
         overallStatus: "Analysis Unavailable",
+        extractedText: extractedText || "No text could be extracted from the uploaded image.",
         summaryPoints: [
           "AI analysis could not generate structured output from this report.",
           "The extracted text from the image is available below for reference."
@@ -276,6 +277,7 @@ Rules:
       reportType: "Medical Report",
       patientName: patientNameInput || null,
       overallStatus: "Analysis Error",
+      extractedText: extractedText || "No text could be extracted from the uploaded image.",
       summaryPoints: [
         `AI analysis failed: ${err.message}`,
         "Extracted text from the image is available below."

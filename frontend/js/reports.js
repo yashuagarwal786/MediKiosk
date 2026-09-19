@@ -14,6 +14,15 @@ function setStatus(message, type = "") {
   els.uploadStatus.className = `status-line ${type}`.trim();
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function formatDate(value) {
   try {
     let str = String(value).trim();
@@ -87,6 +96,7 @@ function renderSingleReport(item) {
   }
 
   const badge = getOverallBadge(data.overallStatus);
+  const extractedText = item.extracted_text || data.extractedText || "";
   const flaggedParams = (data.parameters || []).filter(p => p.flag);
   const normalParams  = (data.parameters || []).filter(p => !p.flag);
 
@@ -170,6 +180,14 @@ function renderSingleReport(item) {
             <span style="font-weight: 600; color: var(--ink-primary);">${data.doctorName}</span>
           </div>` : ""}
         </div>
+
+        ${extractedText ? `
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.4rem;">
+          <div style="font-weight: 700; font-size: 0.88rem; color: var(--primary); margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>📝</span> <span>Extracted Report Text</span>
+          </div>
+          <pre style="margin: 0; padding: 1rem; background: var(--bg-base); border-radius: 8px; white-space: pre-wrap; word-break: break-word; font: 0.88rem/1.6 inherit; color: var(--ink-primary); max-height: 360px; overflow: auto;">${escapeHtml(extractedText)}</pre>
+        </div>` : ""}
 
         <!-- Clinical Summary Bullet Points (Each on a new line) -->
         ${summaryHtml ? `
