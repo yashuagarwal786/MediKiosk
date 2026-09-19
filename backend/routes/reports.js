@@ -239,9 +239,13 @@ Rules:
     }
 
     const json = await response.json();
-    let raw = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning || "";
+    let raw = json.choices?.[0]?.message?.content || json.choices?[0]?.message?.reasoning || "";
+
+    console.log(`[REPORTS] NABH API response raw (first 500 chars): ${raw.substring(0, 500)}`);
 
     const parsed = extractValidJson(raw);
+
+    console.log(`[REPORTS] Parsed JSON: ${parsed ? "YES" : "NO"}`);
 
     if (parsed) {
       if (patientNameInput) parsed.patientName = patientNameInput;
@@ -251,47 +255,38 @@ Rules:
         .map(p => `• ${p.name}: ${p.value} (${p.status}) — Ref: ${p.referenceRange || "N/A"}`)
         .join("\n") || "• All parameters within normal range";
     } else {
-      const fallbackObj = {
-        reportType: "Hematology / CBC Diagnostic Report",
-        patientName: patientNameInput || "Mr. Rohan Sharma",
-        ageGender: "28 Y / Male",
-        labName: "CityCare Diagnostics Pvt. Ltd.",
-        reportDate: new Date().toLocaleDateString(),
-        doctorName: "Dr. Aniket Verma",
-        overallStatus: "Normal",
+      aiSummary = JSON.stringify({
+        reportType: "Medical Report Analysis",
+        patientName: patientNameInput || null,
+        overallStatus: "Analysis Unavailable",
         summaryPoints: [
-          "Complete Blood Count (CBC) analysis processed successfully.",
-          "Hemoglobin, Total Leucocyte Count (TLC), and Platelet counts are within biological reference ranges."
+          "AI analysis could not generate structured output from this report.",
+          "The extracted text from the image is available below for reference."
         ],
-        parameters: [
-          { name: "Hemoglobin (Hb)", value: "15.2 g/dL", referenceRange: "13.5 - 17.5", status: "Normal", flag: false },
-          { name: "Total Leucocyte Count (TLC)", value: "7,800 /µL", referenceRange: "4,000 - 11,000", status: "Normal", flag: false },
-          { name: "Red Blood Cell Count (RBC)", value: "5.26 Million/µL", referenceRange: "4.5 - 5.5", status: "Normal", flag: false },
-          { name: "Platelet Count", value: "2.45 Lakh/µL", referenceRange: "1.5 - 4.1", status: "Normal", flag: false },
-          { name: "Hematocrit (PCV)", value: "45.1 %", referenceRange: "41 - 53", status: "Normal", flag: false },
-          { name: "Mean Corpuscular Volume (MCV)", value: "85.7 fL", referenceRange: "80 - 100", status: "Normal", flag: false }
-        ],
+        parameters: [],
         criticalAlerts: [],
-        recommendations: ["Routine follow-up with your consulting physician recommended."],
+        recommendations: ["Please share the original report directly with your doctor for proper interpretation."],
         disclaimer: "This summary is AI-generated for informational purposes only."
-      };
-      aiSummary = JSON.stringify(fallbackObj);
-      keyFindings = `• Report: ${filename}\n• All key parameters within normal limits`;
+      });
+      keyFindings = `• Report: ${filename}\n• AI structured analysis unavailable — showing extracted text`;
     }
   } catch (err) {
     console.warn("NABH Report Summarization fallback:", err.message);
     const errObj = {
       reportType: "Medical Report",
       patientName: patientNameInput || null,
-      overallStatus: "N/A",
-      summaryPoints: [`Report uploaded. Note: ${err.message}`],
+      overallStatus: "Analysis Error",
+      summaryPoints: [
+        `AI analysis failed: ${err.message}`,
+        "Extracted text from the image is available below."
+      ],
       parameters: [],
       criticalAlerts: [],
       recommendations: ["Please share the original report directly with your doctor."],
       disclaimer: "Always consult your doctor for medical advice."
     };
     aiSummary = JSON.stringify(errObj);
-    keyFindings = `• Report File: ${filename}\n• Status: ${err.message}`;
+    keyFindings = `• Report File: ${filename}\n• AI Analysis Error: ${err.message}`;
   }
 
   try {
