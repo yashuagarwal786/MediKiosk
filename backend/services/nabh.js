@@ -254,7 +254,6 @@ async function generateEmbedding(input) {
 async function speechToText(file) {
   ensureConfigured();
   const { apiKey, baseUrl, sttModel } = getConfig();
-  const form = new FormData();
   const fileBuffer = fs.readFileSync(file.path);
 
   let audioFile;
@@ -267,38 +266,64 @@ async function speechToText(file) {
     audioFile = new Blob([fileBuffer], { type: mimeType });
   }
 
-  form.append("model", sttModel);
-  form.append("file", audioFile, filename);
+  const createForm = (model) => {
+    const form = new FormData();
+    form.append("model", model);
+    form.append("file", audioFile, filename);
+    form.append("response_format", "json");
+    return form;
+  };
 
-  const modelUrl = `${baseUrl}/models/${sttModel}/audio/transcriptions`;
-  const fallbackUrl = `${baseUrl}/audio/transcriptions`;
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "x-api-key": apiKey
+  };
+  const fallbackModel = process.env.NABH_STT_FALLBACK_MODEL || "whisper-1";
+  const candidateModels = [...new Set([sttModel, fallbackModel].filter(Boolean))];
+  const endpoints = [
+    { name: "generic", url: (model) => `${baseUrl}/audio/transcriptions` },
+    { name: "model", url: (model) => `${baseUrl}/models/${encodeURIComponent(model)}/audio/transcriptions` }
+  ];
+  let lastFailure = { status: 503, message: "No speech transcription endpoint succeeded." };
 
-  let response = await fetch(modelUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "x-api-key": apiKey
-    },
-    body: form
-  });
+  for (const model of candidateModels) {
+    for (const endpoint of endpoints) {
+      const response = await fetch(endpoint.url(model), {
+        method: "POST",
+        headers,
+        body: createForm(model)
+      });
 
-  if (response.status === 404) {
-    response = await fetch(fallbackUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "x-api-key": apiKey
-      },
-      body: form
-    });
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        let message = errorBody || `HTTP ${response.status}`;
+        try {
+          const parsedError = JSON.parse(errorBody || "{}");
+          message = parsedError.error?.message || parsedError.message || message;
+        } catch {}
+        lastFailure = { status: response.status || 503, message };
+        console.warn(`[STT] ${endpoint.name} endpoint failed for ${model} (${lastFailure.status}).`);
+        continue;
+      }
+
+      try {
+        const json = await parseJsonResponse(response);
+        const text = json.text || json.transcription || json.data?.text;
+        if (!text) {
+          throw new Error(json.error?.message || json.message || "No speech could be recognized. Please speak closer to the mic.");
+        }
+        return { text };
+      } catch (error) {
+        lastFailure = { status: error.status || 502, message: error.message || "Invalid transcription response." };
+        console.warn(`[STT] ${endpoint.name} endpoint returned an invalid response for ${model}.`);
+      }
+    }
   }
 
-  const json = await parseJsonResponse(response);
-  const text = json.text || json.transcription || json.data?.text;
-  if (!text) {
-    throw new Error(json.error?.message || json.message || "No speech could be recognized. Please speak closer to the mic.");
-  }
-  return { text };
+  const error = new Error(`Speech transcription service is unavailable: ${lastFailure.message}`);
+  error.status = lastFailure.status || 503;
+  error.code = "NABH_ERROR";
+  throw error;
 }
 
 async function textToSpeech(text) {

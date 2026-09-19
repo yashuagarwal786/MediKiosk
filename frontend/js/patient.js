@@ -189,7 +189,10 @@ async function toggleRecording(target, button) {
       try {
         await convertSpeech(new Blob(state.chunks, { type: "audio/webm" }), state.recordingTarget);
       } catch (error) {
-        setStatus(statusEl, `${error.message}`, "error");
+        const message = /no deployments available|cooldown|try again in/i.test(error.message || "")
+          ? "Speech model is temporarily unavailable. Please wait 5 seconds, then try again."
+          : error.message;
+        setStatus(statusEl, message || "Speech transcription failed. Please try again.", "error");
       }
     };
 
